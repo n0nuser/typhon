@@ -164,6 +164,13 @@ func (s *Snake) slot(i int) int {
 //
 // It is mutated in place by Apply and restored by Unapply, so a search holds
 // exactly one of these and walks it, rather than allocating a board per node.
+//
+// A State is owned by one goroutine. Not only Apply and Unapply mutate it:
+// Passable rebuilds state-owned scratch, so even two apparently read-only
+// callers racing on one State is a bug. The tournament harness therefore gives
+// every game its own State, its own evaluator and its own transposition table,
+// which is also what makes a run reproducible rather than dependent on the
+// order games happen to interleave.
 type State struct {
 	Topo         board.Topology
 	Variant      Variant
@@ -181,6 +188,10 @@ type State struct {
 	// keep that square blocked when only one of its segments leaves.
 	counts   []uint8
 	occupied board.Bitset
+
+	// passable is Occupied with vacating tails released, rebuilt on demand.
+	passableCounts []uint8
+	passable       board.Bitset
 
 	// foodStack holds the food cells removed by each nested Apply, so that
 	// Unapply can put them back without Undo carrying a slice of its own.
@@ -245,16 +256,18 @@ func NewState(cfg Config) (*State, error) {
 	ringSize := t.Cells() + MaxSnakes + 2
 
 	s := &State{
-		Topo:         t,
-		Variant:      cfg.Variant,
-		HazardDamage: cfg.HazardDamage,
-		Turn:         cfg.Turn,
-		Snakes:       make([]Snake, len(cfg.Snakes)),
-		Food:         t.NewBitset(),
-		Hazards:      t.NewBitset(),
-		counts:       make([]uint8, t.Cells()),
-		occupied:     t.NewBitset(),
-		foodStack:    make([]uint16, 0, 64),
+		Topo:           t,
+		Variant:        cfg.Variant,
+		HazardDamage:   cfg.HazardDamage,
+		Turn:           cfg.Turn,
+		Snakes:         make([]Snake, len(cfg.Snakes)),
+		Food:           t.NewBitset(),
+		Hazards:        t.NewBitset(),
+		counts:         make([]uint8, t.Cells()),
+		occupied:       t.NewBitset(),
+		passableCounts: make([]uint8, t.Cells()),
+		passable:       t.NewBitset(),
+		foodStack:      make([]uint16, 0, 64),
 	}
 
 	for _, p := range cfg.Food {
@@ -319,3 +332,33 @@ func (s *State) vacate(cell uint16) {
 // trailingZeros is math/bits.TrailingZeros64, named locally so the bit-walking
 // loops read as board scanning rather than as arithmetic.
 func trailingZeros(v uint64) int { return bits.TrailingZeros64(v) }
+
+// Passable returns the squares a snake may move into on the next turn.
+//
+// It is Occupied with each living snake's tail released, because a tail vacates
+// as its snake moves. The release is one count, not one square, which is the
+// whole point: a snake that ate last turn carries its tail twice, so releasing
+// one leaves the square blocked and the snake behind it does not walk into a
+// body that has not moved.
+//
+// The result is owned by the state and is rebuilt by the next call.
+func (s *State) Passable() board.Bitset {
+	copy(s.passableCounts, s.counts)
+	for i := range s.Snakes {
+		sn := &s.Snakes[i]
+		if !sn.Alive() {
+			continue
+		}
+		if tail := sn.Tail(); s.passableCounts[tail] > 0 {
+			s.passableCounts[tail]--
+		}
+	}
+
+	s.passable.Reset()
+	for cell, n := range s.passableCounts {
+		if n > 0 {
+			s.passable[cell/s.Topo.Width] |= 1 << uint(cell%s.Topo.Width)
+		}
+	}
+	return s.passable
+}

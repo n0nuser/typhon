@@ -114,7 +114,7 @@ it on).
   reach, so a future change to the move policy fails loudly instead of
   quietly making the differential test vacuous.
 
-### Step 3 — `internal/eval` — `TODO`
+### Step 3 — `internal/eval` — `DONE`
 
 Weight struct with one flag per term; terminal scoring; Voronoi control, space
 vs length, tail reachability, length advantage, health vs food, centre control,
@@ -122,6 +122,19 @@ opponent confinement.
 
 - **Scope:** `internal/eval/`.
 - **Acceptance:** `go test ./internal/eval/... -race -count=1`
+- **Result:** `ok github.com/n0nuser/typhon/internal/eval 1.013s coverage: 94.4%
+  of statements`, `BenchmarkEvaluate-8 147020 8097 ns/op 0 B/op 0 allocs/op`.
+
+  8.1µs is the number that sets the search's shape: about 49,000 evaluations
+  fit in a 400ms budget, so the search must evaluate at leaves and prune well
+  rather than score everything it touches. In a duel that is roughly depth 6
+  to 8, against the predecessor's one.
+- **Two bugs the tests caught, both silent:** the reachable-space term was
+  always zero, because a flood fill refuses to start on a blocked square and a
+  snake's own head is occupied - it still produced a number, always the same
+  wrong one. And `State` owns mutable scratch, so evaluating one from two
+  goroutines is a race; the contract is now written on the type and the
+  harness gives every game its own.
 
 ### Step 4 — `internal/search` — `TODO`
 
