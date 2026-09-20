@@ -260,7 +260,12 @@ func (p *player) move(state *official.BoardState, id string) board.Direction {
 	if res.Depth > p.stats.maxDepth {
 		p.stats.maxDepth = res.Depth
 	}
-	if res.Depth == 0 {
+	// A depth of zero on a position that is already decided is not a fallback,
+	// it is the last snake standing being asked to move. Counting those made
+	// `fallbacks` come out exactly equal to the number of games the arm won -
+	// a win column wearing a failure's name, which is precisely the kind of
+	// counter that gets read the wrong way round.
+	if res.Depth == 0 && !st.Over() {
 		p.stats.fallbacks++
 	}
 	if res.AllLosing {
