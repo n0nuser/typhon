@@ -5,7 +5,7 @@ RULES_VERSION    := v1.2.3
 
 GOBIN := $(shell go env GOPATH)/bin
 
-.PHONY: all check fmt fmt-fix vet lint test build run tools hooks bench e2e clean
+.PHONY: all check fmt fmt-fix vet lint test build run tools hooks bench phase-a phase-b e2e clean
 
 all: check
 
@@ -72,6 +72,17 @@ hooks:
 ## bench: Go microbenchmarks. The tournament harness is `cmd/typhon-bench`.
 bench:
 	go test -run '^$$' -bench . -benchmem ./...
+
+## phase-a: the n=30 suite. Shakes out bugs and confirms every path fires.
+##          Nothing from it is fit to publish.
+phase-a:
+	scripts/benchmark.sh a $(BENCH_OUT)
+
+## phase-b: the n=200 suite, which is what BENCHMARK.md is written from.
+phase-b:
+	scripts/benchmark.sh b $(BENCH_OUT)
+
+BENCH_OUT ?= $(shell echo $${TMPDIR:-/tmp})/typhon-bench
 
 ## e2e: one local game per supported ruleset against a running server.
 ##   Requires 'make tools' and './typhon' listening on PORT.
