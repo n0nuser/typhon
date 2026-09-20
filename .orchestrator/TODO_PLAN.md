@@ -238,12 +238,27 @@ One game per supported ruleset, Typhon against Typhon, through the official
 The predecessor silently played `wrapped` with standard logic, treating the
 edge of the board as fatal. This one plays 505 turns of it.
 
-### Step 7 — Phase A, n=30 — `TODO`
+### Step 7 — Phase A, n=30 — `DONE`
 
 Throwaway runs to shake out bugs and confirm every decision path fires at least
 once. Not for publication.
 
 - **Acceptance:** every counter non-zero; one clean run per ruleset.
+- **Result:** the three headline arms are in and written up in `BENCHMARK.md`.
+  The structural and per-ruleset arms were skipped by a bug in the suite script
+  and are re-running.
+
+  Phase A did its job twice over. It confirmed the arms differ - one ply
+  averages exactly 1.00 ply against the full search's 5.08, so nothing here is
+  measuring an inert flag - and it produced the mechanism: the one-ply bot
+  does not die sooner, it dies more often, having reached positions where every
+  move loses **31 times against the searching bot's once**.
+
+  It also caught two bugs in its own scaffolding, which is what a smoke phase
+  is for: a path counter that read backwards, and a suite script that stopped
+  three runs in and reported success, because the driver had `set -u` but not
+  `set -e`. A run that stops early and says it finished is worse than one that
+  crashes.
 
 ### Step 8 — Phase B, n=200, and `BENCHMARK.md` — `TODO`
 
