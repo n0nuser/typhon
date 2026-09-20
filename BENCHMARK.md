@@ -137,7 +137,61 @@ a 56% result came to be read as a win.
 So the floor section below leads with the slot binomial and its interval, and
 every arm result quotes its own slot split beside it.
 
-## The tournament results
+## Phase A — n=30, diagnostic only
 
-_Pending: Phase A (n=30, diagnostic) and Phase B (n=200, publishable) are
-running. This section is written from their output and not before._
+**Nothing in this section is a finding.** Thirty games is the sample size that
+produced 8-10-2 and 25-9-6 from one configuration. These runs exist to shake out
+bugs and to show that the arms really differ, and they are reported because the
+path counts are informative even where the win columns are not.
+
+All runs: 11x11 standard, 4,000 nodes a turn, seeds 9000-9029, arms alternating
+starting slots.
+
+| Run | Result | Paired p | Reading |
+| --- | --- | --- | --- |
+| floor (identical configs) | 14-16 | 0.855 | not separated, as it must be |
+| random control | search 30, coin 0 | <0.0001 | search is not a coin |
+| search pays (full vs 1 ply) | 28-2 | <0.0001 | depth pays |
+
+The floor's **slot** split, which is the number that run exists for: slot 0 won
+11 and slot 1 won 19, so slot 0 took **36.7%, 95% CI [21.9%, 54.5%]**. The
+interval contains 50%, so thirty games cannot establish a slot effect - but it
+is the same direction and rough size as the predecessor's 29-23-8, and it is
+why every arm below quotes its own slot split.
+
+The harness's own power note on the floor run is worth quoting: *at this split,
+about 865 decisive games would be needed to separate them.* That is the shape of
+almost every conclusion the predecessor published.
+
+### What the path counts say
+
+This is the part n=30 is good for.
+
+```
+floor        alpha  mean_depth=5.47 max_depth=15 aborted=11947/12206 all_losing=16 deaths=16
+             beta   mean_depth=5.45 max_depth=15 aborted=11931/12208 all_losing=14 deaths=14
+random       search mean_depth=4.64 nodes=3202703  deaths=0
+             coin   mean_depth=0.00 nodes=0        deaths=30 mean_death_turn=27
+search-pays  full   mean_depth=5.08 max_depth=11 all_losing=1  deaths=2  mean_death_turn=170
+             oneply mean_depth=1.00 max_depth=1  all_losing=31 deaths=28 mean_death_turn=175
+```
+
+**The arms are really different.** `oneply` averages exactly 1.00 ply and
+`full` averages 5.08. Whatever the win column means, it is not measuring an
+inert flag - which is precisely the failure the predecessor recorded.
+
+**`aborted` is not a failure count.** Nearly every turn ends with an iteration
+cut off by the budget: that is what iterative deepening is. The number that
+would matter is `fallbacks`, the turns where *no* depth completed, and it is 28
+in 5,277 - half a percent.
+
+**And the mechanism is not what you would guess.** The one-ply bot does not die
+sooner: both arms die around turn 170. It dies *more often*, and the counter
+that explains why is `all_losing` - the turns on which every legal move was
+contested by an equal-or-longer rival. The one-ply bot reached those positions
+**31 times; the searching bot reached them once**. Search does not win by
+surviving lost positions better. It wins by not walking into them.
+
+## Phase B — n=200
+
+_Running. Written from its output and not before._
