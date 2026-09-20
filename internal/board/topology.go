@@ -8,8 +8,6 @@
 // Up is y+1.
 package board
 
-import "errors"
-
 // MaxWidth is the widest board this package represents.
 //
 // The occupancy bitset holds one uint64 per row, so a row must fit in a word.
@@ -17,9 +15,6 @@ import "errors"
 // rather than a limit anyone reaches. A wider board is rejected at the boundary
 // instead of being played wrong.
 const MaxWidth = 64
-
-// ErrBoardSize reports a board this package cannot represent.
-var ErrBoardSize = errors.New("board: unrepresentable board size")
 
 // Point is a square on the board.
 //
