@@ -63,7 +63,7 @@ Read from `rules@v1.2.3` in the module cache, not from the prose docs:
 
 ## Steps
 
-### Step 1 — `internal/api` and `internal/board` — `TODO`
+### Step 1 — `internal/api` and `internal/board` — `DONE`
 
 Wire types, and the bitset/topology/flood-fill/Voronoi primitives.
 
@@ -72,6 +72,20 @@ Wire types, and the bitset/topology/flood-fill/Voronoi primitives.
 - **Note:** every neighbour operation goes through one `Topology` type. A
   `c.X + 1` written anywhere else is how `wrapped` ends up subtly wrong while
   the standard tests stay green.
+- **Result:** `ok github.com/n0nuser/typhon/internal/board 1.036s coverage:
+  96.6% of statements`, `golangci-lint: 0 issues`, and the benchmarks that the
+  deadline depends on:
+
+  ```
+  BenchmarkReach-8      1306947    918.0 ns/op    0 B/op    0 allocs/op
+  BenchmarkVoronoi-8     192918   6231   ns/op    0 B/op    0 allocs/op
+  ```
+
+  Both allocation-free, which is the bar §13 of the review checklist sets.
+  Voronoi at 6.2µs is the number to watch: it puts a hard ceiling near 64k
+  evaluations inside a 400ms budget, so if the search turns out to be
+  evaluation-bound, this is where a profile should look first. Not optimised
+  now — `rules.md` §2 says a profile comes before the optimisation.
 
 ### Step 2 — `internal/rules` and the differential tests — `TODO`
 
