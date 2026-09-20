@@ -35,9 +35,9 @@ esac
 
 # The node budget both arms play under, and the turn cap that bounds a game.
 #
-# 4,000 nodes is about 40ms of thinking in a duel on the machine this was
+# 4,000 nodes is about 18ms of thinking in a duel on the machine this was
 # written on - run `typhon-bench -calibrate` for the ratio on yours. That is a
-# tenth of what the deployed bot gets, and still roughly three hundred times
+# twentieth of what the deployed bot gets, and still well over a hundred times
 # the predecessor's entire decision. It is chosen for one reason: two hundred
 # paired games have to actually finish. At 20,000 nodes a single arm comparison
 # ran past ten minutes and the n=200 suite would have taken most of a day,

@@ -143,6 +143,21 @@ ruleset. Hand-written expectations would encode the same misreading twice.
 - **Negative results are reported.** They were the most interesting findings
   last time.
 
+## Documentation
+
+| Where | What |
+| --- | --- |
+| [`BENCHMARK.md`](BENCHMARK.md) | Every number that was measured, including the ones that did not go the way we hoped |
+| [`docs/findings/`](docs/findings/) | Things learned that would not have been guessed - eleven of them, including two bugs a green gate never saw |
+| [`docs/adr/`](docs/adr/) | Decisions that were not forced, each with the alternative it rejected |
+| [`docs/research/`](docs/research/) | What the rules engine actually does, where the 500ms goes, and what survives of the predecessor's conclusions |
+| [`.review/`](.review/) | The filled pre-merge checklist |
+
+If you read one, read
+[findings/002](docs/findings/002-a-suggestive-result-that-evaporated.md): the
+largest weight in the evaluation looked worth 63% at thirty games and 52.5% at
+two hundred, with nothing changed but the sample size.
+
 ## Contributing
 
 `docs/agents/rules.md` is the baseline — change discipline, the complexity

@@ -65,14 +65,19 @@ leaves and leans on move ordering, rather than scoring everything it touches.
 
 From `go run ./cmd/typhon-bench -calibrate`, which exists as a command rather
 than as a number in a document so that it stays true after a change to the
-search. Measured while the machine was otherwise busy, so these are on the
-pessimistic side.
+search. Re-measured on a quiet machine with the current code: the first two
+versions of this table were taken under load and against an older search, and
+`docs/agents/rules.md` does not allow a stale measurement to stand.
 
 | Position | 50ms | 100ms | 200ms | 400ms |
 | --- | --- | --- | --- | --- |
-| Opening, 2 snakes | 5,568 nodes, depth 4 | 10,432, depth 5 | 23,744, depth 6 | 41,408, **depth 7** |
-| Midgame, 2 snakes | 5,376, depth 5 | 11,264, depth 6 | 21,568, depth 6 | 45,568, **depth 7** |
-| Midgame, 4 snakes | 2,624, depth 2 | 5,504, depth 2 | 11,712, depth 3 | 22,976, **depth 3** |
+| Opening, 2 snakes | 13,920 nodes, depth 5 | 21,148, depth 6 | 39,103, depth 7 | 87,632, **depth 7** |
+| Midgame, 2 snakes | 10,635, depth 6 | 21,014, depth 6 | 46,739, depth 7 | 97,864, **depth 8** |
+| Midgame, 4 snakes | 5,339, depth 2 | 11,007, depth 3 | 23,970, depth 3 | 42,327, **depth 3** |
+
+A node costs about 4.5µs in a duel and about 9µs with four snakes on the board.
+**The suites' 4,000-node budget is therefore around 18ms of thinking** - not a
+tenth of a deployed turn but closer to a twentieth.
 
 Two things follow, and the second is uncomfortable.
 
@@ -493,6 +498,8 @@ Every weight in `eval.Default()` should be read as a guess that has not been
 falsified, not as a tuned value.
 
 **Does any of this hold at the deployed budget?** The suites run at 4,000 nodes,
-roughly a tenth of what a 500ms turn buys. Search beating one ply by 191-9 at a
-tenth of the budget is if anything a conservative estimate - the gap should
-widen with depth, not narrow - but that is reasoning, not measurement.
+about 18ms of thinking, against the roughly 90,000 nodes a 400ms turn buys -
+a twentieth, not the tenth an earlier draft of this file claimed before the
+calibration was re-run. Search beating one ply by 191-9 at a twentieth of the
+budget is if anything a conservative estimate, since the gap should widen with
+depth rather than narrow. But that is reasoning, not measurement.
