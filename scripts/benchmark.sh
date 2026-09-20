@@ -19,9 +19,17 @@ OUT="${2:-${TMPDIR:-/tmp}/typhon-bench}"
 # Phase A once died three runs in with an unbound variable.
 ROOT="${ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 
+# Phase A is the whole sweep at n=30: it shakes out bugs and shows which paths
+# fire. Phase B is the three arms that answer a question, at n=200.
+#
+# Phase B is deliberately not the whole sweep. Eleven arm comparisons at two
+# hundred paired games each is most of a day, and a suite that takes most of a
+# day is a suite that gets skipped. Three arms that run are worth more than
+# eleven that do not; the rest stay in Phase A and are reported as what they
+# are - underpowered, and not findings.
 case "$PHASE" in
-    a) GAMES=30; SEED=9000 ;;
-    b) GAMES=200; SEED=9100 ;;
+    a) GAMES=30;  SEED=9000; ARMS=all ;;
+    b) GAMES=200; SEED=9100; ARMS=headline ;;
     *) echo "usage: $0 [a|b] [output-dir]" >&2; exit 2 ;;
 esac
 
