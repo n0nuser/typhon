@@ -20,12 +20,21 @@ case "$PHASE" in
     *) echo "usage: $0 [a|b] [output-dir]" >&2; exit 2 ;;
 esac
 
-# The node budget both arms play under. Measured against real play: a 270-turn
-# game at -t 500 averaged about 101,000 nodes a turn, so 20,000 nodes is
-# roughly 85ms of thinking against the ~425ms the deployed bot actually gets.
-# Conclusions drawn here are conclusions at that depth; the calibration is
-# recorded in BENCHMARK.md so nobody has to rediscover the ratio.
-NODES="${NODES:-20000}"
+# The node budget both arms play under, and the turn cap that bounds a game.
+#
+# 4,000 nodes is about 40ms of thinking in a duel on the machine this was
+# written on - run `typhon-bench -calibrate` for the ratio on yours. That is a
+# tenth of what the deployed bot gets, and still roughly three hundred times
+# the predecessor's entire decision. It is chosen for one reason: two hundred
+# paired games have to actually finish. At 20,000 nodes a single arm comparison
+# ran past ten minutes and the n=200 suite would have taken most of a day,
+# which in practice means it does not get run - which is how a project ends up
+# publishing n=20 again.
+#
+# Conclusions drawn here are conclusions at this depth. That is a real caveat,
+# and it belongs in BENCHMARK.md rather than left implicit.
+NODES="${NODES:-4000}"
+MAX_TURNS="${MAX_TURNS:-800}"
 
 mkdir -p "$OUT"
 BIN="$OUT/typhon-bench"
@@ -37,7 +46,7 @@ LOG="$OUT/phase-$PHASE.log"
 run() {
     local label="$1"; shift
     echo "=== $label ===" | tee -a "$LOG"
-    "$BIN" -n "$GAMES" -seed "$SEED" -label "$label" "$@" 2>&1 | tee -a "$LOG"
+    "$BIN" -n "$GAMES" -seed "$SEED" -max-turns "$MAX_TURNS" -label "$label" "$@" 2>&1 | tee -a "$LOG"
     echo | tee -a "$LOG"
 }
 
@@ -47,15 +56,18 @@ run() {
 run floor        -a "nodes=$NODES" -b "nodes=$NODES" -name-a alpha -name-b beta
 run random-floor -a "nodes=$NODES" -b "random=true" -name-a search -name-b coin
 run search-pays  -a "nodes=$NODES" -b "nodes=$NODES,depth=1" -name-a full -name-b oneply
-run voronoi      -a "nodes=$NODES" -b "nodes=$NODES,voronoi=0" -name-a with -name-b without
-run tailreach    -a "nodes=$NODES" -b "nodes=$NODES,tailreach=0" -name-a with -name-b without
-run confine      -a "nodes=$NODES" -b "nodes=$NODES,confine=0" -name-a with -name-b without
-run opponents    -a "nodes=$NODES,opponents=2" -b "nodes=$NODES,opponents=1" -name-a two -name-b one
-run table        -a "nodes=$NODES" -b "nodes=$NODES,table=false" -name-a with -name-b without
 
-for g in royale constrictor wrapped; do
-    run "ruleset-$g" -rules "$g" -a "nodes=$NODES" -b "nodes=$NODES,depth=1" \
-        -name-a full -name-b oneply
-done
+if [ "$ARMS" = all ]; then
+    # The structural arms. Each is one flag against the same baseline, so a result
+    # belongs to that flag and to nothing else.
+    run voronoi      -a "nodes=$NODES" -b "nodes=$NODES,voronoi=0" -name-a with -name-b without
+    run tailreach    -a "nodes=$NODES" -b "nodes=$NODES,tailreach=0" -name-a with -name-b without
+    run confine      -a "nodes=$NODES" -b "nodes=$NODES,confine=0" -name-a with -name-b without
+    run opponents    -a "nodes=$NODES,opponents=2" -b "nodes=$NODES,opponents=1" -name-a two -name-b one
+    for g in royale constrictor wrapped; do
+        run "ruleset-$g" -rules "$g" -a "nodes=$NODES" -b "nodes=$NODES,depth=1" \
+            -name-a full -name-b oneply
+    done
+fi
 
 echo "log: $LOG"
