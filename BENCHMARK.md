@@ -122,10 +122,15 @@ running**, at a load average of 13 on eight cores:
 | standard | 453 | 7 | 13-14 | 444ms | **0** |
 | royale | 249 | 6-7 | 17 | 451ms | **0** |
 | constrictor | 52 | 7-9 | 19-20 | 431ms | **0** |
+| wrapped | 411 | 7 | 12 | 441ms | **0** |
 
-**1,508 turns, not one of them late.** `max_think` sits at 428-451ms against a
-500ms budget throughout, so the search is spending its allowance and stopping,
-not finishing early by luck.
+**2,018 turns across eight snake-games, not one of them late.** `max_think` sits
+at 428-451ms against a 500ms budget throughout, so the search is spending its
+allowance and stopping, not finishing early by luck.
+
+Constrictor reaching depth 20 is not an anomaly: the board fills, the branching
+collapses, and the same budget goes further. It is the ruleset where lookahead
+should matter most and the search behaves accordingly.
 
 This is the check that matters for the clock-interval fix. At the original
 64-node interval a 2ms budget on a loaded machine overran to 86ms; a node here
