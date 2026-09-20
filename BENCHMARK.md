@@ -10,7 +10,7 @@ we hoped. Every number here came from a run; nothing is projected.
 | Does searching deeper beat one ply? | **Yes, 191-9** | n=200 paired, p<0.0001, [91.7%, 97.6%] |
 | Is any of it better than a coin? | **Yes, 200-0** | n=200 paired, p<0.0001 |
 | What is the floor? | **51.0%**, [44.1%, 57.8%] | n=200, two identical bots, slots alternating |
-| Is there a start-position bias? | **Not detectable** | contradicts the predecessor - see below |
+| Is there a start-position bias? | **No: 51.2%**, [47.2%, 55.1%] | 600 games; excludes the predecessor's 55.8% |
 | Does it fit a real turn budget? | **Yes** | 0 late turns in 540 against the live engine; depth 8 mean |
 | Does Typhon beat `battlesnake-jev`? | **Not measured** | and why is stated rather than glossed |
 
@@ -242,8 +242,20 @@ every other comparison had been measured against a wrong baseline was itself
 never established. It was sixty games saying almost nothing, read as a finding.
 
 The honest version, at 200 games with the slots alternating, is that the slot is
-worth nothing anyone can measure. The random control below independently agrees:
-its slot split is exactly 100-100.
+worth nothing anyone can measure. And because every Phase B run alternates slots,
+all three of them are evidence about the same question, so they pool:
+
+| Run | slot 0 | slot 1 | slot 0 share | 95% CI |
+| --- | --- | --- | --- | --- |
+| floor | 102 | 98 | 51.0% | [44.1%, 57.8%] |
+| random control | 100 | 100 | 50.0% | [43.1%, 56.9%] |
+| search pays | 105 | 95 | 52.5% | [45.6%, 59.3%] |
+| **pooled** | **307** | **293** | **51.2%** | **[47.2%, 55.1%]** |
+
+Six hundred decisive games put the starting slot at **51.2%, [47.2%, 55.1%]**.
+The interval contains 50% comfortably, and it **excludes 55.8%** - the figure the
+predecessor recorded as the floor. Whatever was making its measurements noisy, it
+was not the starting square.
 
 The other number worth quoting from that run is the harness's own power note:
 **about 9,604 decisive games would be needed** to separate two configurations
