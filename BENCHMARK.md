@@ -282,12 +282,22 @@ all three of them are evidence about the same question, so they pool:
 | floor | 102 | 98 | 51.0% | [44.1%, 57.8%] |
 | random control | 100 | 100 | 50.0% | [43.1%, 56.9%] |
 | search pays | 105 | 95 | 52.5% | [45.6%, 59.3%] |
-| **pooled** | **307** | **293** | **51.2%** | **[47.2%, 55.1%]** |
+| tail reachability | 83 | 117 | 41.5% | [34.9%, 48.4%] |
+| **pooled** | **390** | **410** | **48.8%** | **[45.3%, 52.2%]** |
 
-Six hundred decisive games put the starting slot at **51.2%, [47.2%, 55.1%]**.
-The interval contains 50% comfortably, and it **excludes 55.8%** - the figure the
+Eight hundred decisive games put the starting slot at **48.8%, [45.3%, 52.2%]**.
+The interval contains 50% comfortably and **excludes 55.8%** - the figure the
 predecessor recorded as the floor. Whatever was making its measurements noisy, it
 was not the starting square.
+
+**One row in that table does exclude 50%**, and it is worth not skipping past.
+The tail-reachability run split 83-117, an interval of [34.9%, 48.4%]. Taken
+alone that reads as a real slot effect. It is four tests, though, and one of four
+independent 95% intervals missing its target about eighteen percent of the time
+is arithmetic, not a finding - and it is the run whose own arm comparison was
+also null. Quoting it as evidence of slot bias while ignoring the other three
+would be the same error this file was written to avoid, committed in the
+opposite direction.
 
 The other number worth quoting from that run is the harness's own power note:
 **about 9,604 decisive games would be needed** to separate two configurations
@@ -408,10 +418,38 @@ to look rather than to assume. It carries weight 6 in `eval.Default()`.
 
 **Tail reachability points the right way**, 19-11, at exactly the same p. It
 carries weight 40, the largest in the evaluation, so it is the one arm where an
-answer would actually change the bot. It is being re-run at n=200 below.
+answer would actually change the bot. It was re-run at n=200; see below.
 
 That two arms with opposite meanings produce the identical statistic is the
 clearest possible illustration of what thirty games buys.
+
+## Tail reachability at n=200 — the most useful result in this file
+
+The n=30 run gave 19-11 for keeping the term: 63%, and the kind of number that
+gets a feature kept. Two hundred paired games on the same seeds as Phase B:
+
+```
+RESULT tailreach-n200: with=105 without=95 draw=0 of 200 games in 12m14s
+SHARE  with took 52.5% of decisive games, 95% CI [45.6%, 59.3%]
+PAIRED McNemar on 200 discordant games: chi2=0.41 p=0.5245 -> not separated
+PATHS  with     all_losing=103 deaths=95  mean_death_turn=367
+       without  all_losing=109 deaths=105 mean_death_turn=367
+```
+
+**105-95. Not separated.** The 63% became 52.5% with an interval running from
+45.6% to 59.3%, and the path counts agree: both arms die on the same turn, on
+average, having reached roughly the same number of hopeless positions.
+
+So the largest weight in the evaluation is **not measurably earning its place**.
+It is kept, for now, because "not shown to help" is not "shown to hurt" and the
+reasoning behind it is sound - a snake that can path to its own tail can survive
+by following it. But it is now a documented guess rather than a component
+anything here supports.
+
+This is the whole discipline in one run. A 19-11 at thirty games is the exact
+shape of the results the predecessor's log records publishing, and it evaporated
+at two hundred. Nothing about the feature changed between those two runs; only
+the sample size did.
 
 ### Per ruleset
 
