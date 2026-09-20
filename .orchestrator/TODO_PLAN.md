@@ -6,6 +6,12 @@ Written by the LLM only. Committed — this is the reviewable artifact.
 **This file is the state.** If the LLM's belief and this file disagree, the file
 wins.
 
+**The loop is dormant** (see `AGENTS.md` → *Status*), so no step is marked
+`ACTIVE` and the work is being done directly. The steps, their scope and their
+acceptance checks are unchanged — this is still the plan of record, and a step
+still only reaches `DONE` when its acceptance check has been run and the
+decisive line quoted.
+
 ## Status legend
 
 | Status | Meaning |

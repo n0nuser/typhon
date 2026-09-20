@@ -12,6 +12,26 @@ Ported from the `deadchannel` project's runtime. The rules below are not
 invention: each one is a failure that has already happened, and the run it
 happened on is cited where it helps.
 
+## Status: dormant
+
+**The loop is not currently in use.** opencode's only configured provider is out
+of monthly quota, so there is no executor to delegate to; the work is being done
+directly instead, under `docs/agents/rules.md` and the review checklist, which
+§0 says are the rules that apply whenever no step is `ACTIVE`.
+
+Nothing here is speculative — `oc-run`, the briefs and the lifecycle are tested
+and ready. To resume the loop, restore an executor, mark a step `ACTIVE` in
+`.orchestrator/TODO_PLAN.md`, and everything below applies again from that
+moment.
+
+One thing to fix first, learned from the smoke test in
+`.orchestrator/EXECUTION_LOG.md`: **a provider quota rejection is
+indistinguishable from the §2 rule 9 stall at the wrapper level.** opencode
+swallowed a hard API error, emitted nothing and stayed alive, so `oc-run` would
+have spent all three attempts retrying an error no retry can clear. Teach
+`oc-run` to grep the provider log for `level=ERROR` before calling silence a
+stall.
+
 ## §0 Precedence
 
 **While `.orchestrator/TODO_PLAN.md` contains a step marked `ACTIVE`, this
