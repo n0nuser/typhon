@@ -122,6 +122,21 @@ hundred games is upwards of eight hours, and the in-process harness cannot drive
 an external server. It is the obvious next measurement and it is honest to say
 it is missing rather than let 28-2 stand in for it.
 
+## Reading the floor run
+
+The floor run plays two **identical** configurations against each other. Its
+arm result is meaningless by construction - of course they are not different -
+and quoting it would be a category error.
+
+The number it exists to produce is the **slot** split: how often the snake that
+starts in slot 0 wins, whatever is running in it. If that is not 50%, then every
+other result in this file has to be read against the slot's own contribution
+rather than against a coin. The predecessor never ran this control, which is how
+a 56% result came to be read as a win.
+
+So the floor section below leads with the slot binomial and its interval, and
+every arm result quotes its own slot split beside it.
+
 ## The tournament results
 
 _Pending: Phase A (n=30, diagnostic) and Phase B (n=200, publishable) are
