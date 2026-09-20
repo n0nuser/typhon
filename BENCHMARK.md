@@ -339,3 +339,44 @@ a recorded measurement is the thing `docs/agents/rules.md` forbids.
 The counter that does matter, `aborted`, covers nearly every turn in every run -
 36,372 of 37,799 for the searching arm. That is not a failure either: an
 iteration cut short by the budget is precisely what iterative deepening is.
+
+## The structural arms — n=30, and therefore not findings
+
+Four evaluation and search options, each switched off against the same baseline
+so that a result belongs to that option and to nothing else, plus one run per
+supported ruleset. All at thirty games.
+
+**Thirty games cannot separate anything here**, and the floor run says how far
+from it they are: at a 98-102 split the harness's own power note asks for about
+9,604 decisive games. These are reported because a component that does nothing
+is worth knowing about even from a weak signal, and because the path counts show
+whether the component was reached at all - which is the check the predecessor
+skipped when it measured a feature whose threshold was never crossed.
+
+_Running; filled from the output._
+
+## Open questions
+
+Things this file does not answer, recorded so they are not mistaken for
+settled.
+
+**Does Typhon beat `battlesnake-jev`?** Not measured, for the reason given
+above: it needs the old binary answering over HTTP, and two hundred games at
+half a second a turn is upwards of eight hours.
+
+**Is modelling two opponents right in a four-snake game?** The calibration says
+400ms buys depth 7 against one rival and depth 3 against three, because
+modelling two opponents costs 64 joint moves a ply. The `opponents` arm below
+tests one against two, but only at n=30 and only in a duel, where it barely
+matters. The four-snake case is where it would.
+
+**Are the weights any good?** Unknown, and deliberately so. They encode an
+ordering, not a measurement, and with 200 games needed per honest comparison
+there was budget for structural questions and none for searching weight space.
+Every weight in `eval.Default()` should be read as a guess that has not been
+falsified, not as a tuned value.
+
+**Does any of this hold at the deployed budget?** The suites run at 4,000 nodes,
+roughly a tenth of what a 500ms turn buys. Search beating one ply by 191-9 at a
+tenth of the budget is if anything a conservative estimate - the gap should
+widen with depth, not narrow - but that is reasoning, not measurement.
