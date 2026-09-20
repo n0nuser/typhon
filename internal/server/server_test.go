@@ -283,3 +283,43 @@ func coords(xy ...int) []api.Coord {
 	}
 	return out
 }
+
+// A map this module does not understand must be announced, for the same reason
+// an unsupported ruleset is: several official maps place their walls as hazard
+// squares, and this module reads hazards as damage rather than as obstacles.
+// Playing one anyway is the right call; playing it silently is not.
+func TestUnfamiliarMapIsAnnounced(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		mapName   string
+		wantKnown bool
+	}{
+		{name: "the default board", mapName: "standard", wantKnown: true},
+		{name: "royale", mapName: "royale", wantKnown: true},
+		{name: "an absent map field", mapName: "", wantKnown: true},
+		{name: "a maze", mapName: "arcade_maze", wantKnown: false},
+		{name: "snail mode", mapName: "snail_mode", wantKnown: false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var buf bytes.Buffer
+			log := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelWarn}))
+
+			if got := checkMap(tc.mapName, log); got != tc.wantKnown {
+				t.Errorf("checkMap(%q) = %v, want %v", tc.mapName, got, tc.wantKnown)
+			}
+			warned := bytes.Contains(buf.Bytes(), []byte(tc.mapName)) && tc.mapName != ""
+			if !tc.wantKnown && !warned {
+				t.Errorf("nothing was logged about %q; got %q", tc.mapName, buf.String())
+			}
+			if tc.wantKnown && buf.Len() > 0 {
+				t.Errorf("warned about a known map: %q", buf.String())
+			}
+		})
+	}
+}

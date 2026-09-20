@@ -62,9 +62,11 @@ func (h *Handler) handleStart(w http.ResponseWriter, r *http.Request) {
 	h.store.get(stateKey(req))
 
 	_, supported := variantFor(req.Game.Ruleset.Name, h.log)
+	knownMap := checkMap(req.Game.Map, h.log)
 	h.log.Info("game started",
 		"game", req.Game.ID, "snake", req.You.ID,
 		"ruleset", req.Game.Ruleset.Name, "supported", supported,
+		"known_map", knownMap,
 		"map", req.Game.Map, "timeout_ms", req.Game.Timeout,
 		"board", req.Board.Width, "snakes", len(req.Board.Snakes),
 		"hazard_damage", req.Game.Ruleset.Settings.HazardDamagePerTurn)

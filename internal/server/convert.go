@@ -40,6 +40,34 @@ func variantFor(name string, log *slog.Logger) (rules.Variant, bool) {
 	}
 }
 
+// knownMaps are the boards whose furniture this module understands.
+//
+// A map is not just cosmetic. Several official maps place their walls as
+// hazard squares and others move food or hazards around every turn, and this
+// module reads hazards as damage rather than as obstacles - so on a maze map it
+// would walk into a wall believing it costs health. Standard and royale are the
+// maps the four supported rulesets are played on.
+var knownMaps = map[string]bool{
+	"": true, "standard": true, "royale": true, "empty": true, "solo": true,
+}
+
+// checkMap warns when the engine sends a board this module does not understand.
+//
+// It reports rather than refuses, because a wrong-but-playing snake beats a
+// snake that returns nothing, and the engine moves a silent snake up. The point
+// is that it is never silent: the predecessor played every wrapped game with
+// standard logic and nothing in any log said so.
+func checkMap(name string, log *slog.Logger) bool {
+	if knownMaps[name] {
+		return true
+	}
+	log.Warn("unfamiliar map, playing it as an ordinary board",
+		"map", name,
+		"known", "standard, royale, empty, solo",
+		"risk", "hazard squares are read as damage, not as walls")
+	return false
+}
+
 // stateFrom builds the search's board from a request, and reports which snake
 // we are.
 func stateFrom(req api.GameRequest, log *slog.Logger) (*rules.State, int, error) {
