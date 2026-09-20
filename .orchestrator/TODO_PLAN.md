@@ -260,11 +260,37 @@ once. Not for publication.
   `set -e`. A run that stops early and says it finished is worse than one that
   crashes.
 
-### Step 8 — Phase B, n=200, and `BENCHMARK.md` — `TODO`
+### Step 8 — Phase B, n=200, and `BENCHMARK.md` — `DONE`
 
 The floor, the random control, depth-1 vs full, and the structural arms.
 
 - **Acceptance:** McNemar and Wilson printed; the floor measured, not assumed.
+- **Result:** three arms at n=200, written up in `BENCHMARK.md`.
+
+  | Run | Result | Paired p |
+  | --- | --- | --- |
+  | floor, identical configs | 98-102 | 0.832, not separated |
+  | random control | search 200, coin 0 | <0.0001 |
+  | **search pays** | **full 191, one ply 9** | **<0.0001** |
+
+  95.5% of decisive games, CI [91.7%, 97.6%], against a measured floor of
+  51.0% [44.1%, 57.8%].
+
+  **The negative result is the floor.** There is no detectable start-position
+  advantage: 51.0% [44.1%, 57.8%], and the random control agrees independently
+  at exactly 100-100. The predecessor named position bias as the likely
+  explanation for its noise and recorded the floor as "~56%"; re-analysed, its
+  29-23 of 52 decisive games is 55.8% with an interval of [42.3%, 68.4%], which
+  contains 50%. The floor it cited was itself never established.
+
+  **And the mechanism is not the obvious one.** The one-ply arm does not die
+  much sooner - turn 186 against 231. It reaches positions where every legal
+  move is contested **213 times against the searching arm's 7**, over the same
+  number of turns. Depth does not help a snake survive a lost position; it
+  stops it walking into one.
+
+  The remaining structural arms are running at n=30 and will be reported as
+  underpowered rather than as findings.
 
 ### Step 9 — the review checklist — `DONE`
 
