@@ -3,6 +3,22 @@
 What has actually been measured, including the results that did not go the way
 we hoped. Every number here came from a run; nothing is projected.
 
+## The headline
+
+| Question | Answer | Evidence |
+| --- | --- | --- |
+| Does searching deeper beat one ply? | **Yes, 191-9** | n=200 paired, p<0.0001, [91.7%, 97.6%] |
+| Is any of it better than a coin? | **Yes, 200-0** | n=200 paired, p<0.0001 |
+| What is the floor? | **51.0%**, [44.1%, 57.8%] | n=200, two identical bots, slots alternating |
+| Is there a start-position bias? | **Not detectable** | contradicts the predecessor - see below |
+| Does it fit a real turn budget? | **Yes** | 0 late turns in 540 against the live engine; depth 8 mean |
+| Does Typhon beat `battlesnake-jev`? | **Not measured** | and why is stated rather than glossed |
+
+The one that is worth reading before the rest: the win column is *not* where the
+interesting part is. The one-ply arm does not die much sooner than the searching
+arm. It reaches positions where every move loses **213 times against 7**. Depth
+does not help a snake survive a lost position - it stops it walking into one.
+
 ## How to read this file
 
 The predecessor's benchmark log ends with an admission worth repeating: the
