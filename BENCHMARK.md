@@ -8,10 +8,11 @@ we hoped. Every number here came from a run; nothing is projected.
 | Question | Answer | Evidence |
 | --- | --- | --- |
 | Does searching deeper beat one ply? | **Yes, 191-9** | n=200 paired, p<0.0001, [91.7%, 97.6%] |
+| ...in every ruleset? | **No - constrictor is unresolved** | royale 29-1 and wrapped 28-2; constrictor 18-11-1, p=0.27 |
 | Is any of it better than a coin? | **Yes, 200-0** | n=200 paired, p<0.0001 |
 | What is the floor? | **51.0%**, [44.1%, 57.8%] | n=200, two identical bots, slots alternating |
 | Is there a start-position bias? | **No: 51.2%**, [47.2%, 55.1%] | 600 games; excludes the predecessor's 55.8% |
-| Does it fit a real turn budget? | **Yes** | 0 late turns in 540 against the live engine; depth 8 mean |
+| Does it fit a real turn budget? | **Yes** | 0 late turns in 2,018 against the live engine, on a loaded machine |
 | Does Typhon beat `battlesnake-jev`? | **Not measured** | and why is stated rather than glossed |
 
 The one that is worth reading before the rest: the win column is *not* where the
