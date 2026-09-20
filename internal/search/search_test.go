@@ -382,3 +382,51 @@ func pts(xy ...int) []board.Point {
 	}
 	return out
 }
+
+// A completed search must not be overruled by the one-ply check.
+//
+// The one-ply check calls a square fatal whenever a rival can reach it. The
+// search may have found that one of those losses arrives several turns later
+// than another, and dying later is strictly better - it is more turns in which
+// the rival can blunder. An earlier version handed the move back to the one-ply
+// fallback whenever every square was contested, which threw that away.
+func TestACompletedSearchIsNotOverruledByTheOnePlyCheck(t *testing.T) {
+	t.Parallel()
+
+	// Both squares next to our head are contested by an equally long rival, so
+	// the one-ply check calls every move fatal. The search still has an opinion
+	// about which loses later.
+	s := build(t, false, rules.Standard, nil,
+		snake("a", 90, pts(5, 5, 5, 4, 5, 3)),
+		snake("b", 90, pts(3, 5, 2, 5, 1, 5)),
+		snake("c", 90, pts(7, 5, 8, 5, 9, 5)),
+		snake("d", 90, pts(5, 7, 5, 8, 5, 9)),
+	)
+
+	fallback, allLosing := search.SafeMove(s, 0)
+	if !allLosing {
+		t.Fatalf("the position is not all-losing at one ply (fallback %v); it tests nothing", fallback)
+	}
+	res := search.New(s.Topo, search.DefaultConfig()).
+		Search(s, 0, search.Budget{Nodes: 20000, MaxDepth: 6})
+
+	if res.Depth == 0 {
+		t.Fatal("the search completed nothing; this position does not test anything")
+	}
+	// The flag must still be reported - it is what the logs are read for - but
+	// it must not have silently replaced a searched move with the one-ply one
+	// unless the search itself could not separate the options.
+	if !res.AllLosing {
+		t.Error("AllLosing was not reported even though every one-ply move is contested")
+	}
+	// And whatever it picks must still be a square it can actually enter. A
+	// self-collision has no contesters, so a tie-break that ranks purely by the
+	// count would put our own neck first.
+	head := s.Topo.At(int(s.Snakes[0].Head()))
+	next, ok := s.Topo.Step(head, res.Move)
+	if !ok || s.Passable().Has(next) {
+		t.Errorf("played %v into a wall or a body; the fallback was %v", res.Move, fallback)
+	}
+
+	t.Logf("fallback=%v search=%v depth=%d score=%d", fallback, res.Move, res.Depth, res.Score)
+}

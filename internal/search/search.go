@@ -68,18 +68,20 @@ type Searcher struct {
 	tt   *table
 	zob  *zobrist
 
-	me      int
-	state   *rules.State
-	nodes   int64
-	limit   int64
-	dead    time.Time
-	stopped bool
+	me         int
+	checkEvery int64
+	state      *rules.State
+	nodes      int64
+	limit      int64
+	dead       time.Time
+	stopped    bool
 
 	actors  []int
 	killers [][2]board.Direction
 
 	safeFill    *board.FillScratch
 	safeScratch board.Bitset
+	tied        []board.Direction
 }
 
 // New returns a searcher for a board.
@@ -93,6 +95,7 @@ func New(topo board.Topology, cfg Config) *Searcher {
 		killers:     make([][2]board.Direction, 64),
 		safeFill:    topo.NewFillScratch(),
 		safeScratch: topo.NewBitset(),
+		tied:        make([]board.Direction, 0, 4),
 	}
 	if cfg.UseTable {
 		s.tt = newTable(cfg.TableBits)
@@ -112,6 +115,14 @@ func (s *Searcher) Search(state *rules.State, me int, budget Budget) Result {
 	s.nodes = 0
 	s.limit = budget.Nodes
 	s.dead = budget.Deadline
+	// A node budget needs no clock at all, which is what makes a benchmarked
+	// game reproducible. A deadline is checked at every node: time.Now costs
+	// tens of nanoseconds against a node's several microseconds, and returning
+	// late is scored as returning nothing.
+	s.checkEvery = clockCheckInterval
+	if !budget.Deadline.IsZero() {
+		s.checkEvery = 1
+	}
 	s.stopped = false
 	for i := range s.killers {
 		s.killers[i] = [2]board.Direction{}
@@ -136,8 +147,9 @@ func (s *Searcher) Search(state *rules.State, me int, budget Budget) Result {
 	}
 
 	best := fallback
+	var tied []board.Direction
 	for depth := 1; depth <= maxDepth; depth++ {
-		move, score, ok := s.rootSearch(depth, best)
+		move, score, tiedHere, ok := s.rootSearch(depth, best)
 		if !ok {
 			result.Aborted = true
 			break
@@ -146,6 +158,7 @@ func (s *Searcher) Search(state *rules.State, me int, budget Budget) Result {
 		result.Move = move
 		result.Score = score
 		result.Depth = depth
+		tied = tiedHere
 
 		// A forced result will not change with more depth, so spending the
 		// rest of the budget confirming it is waste.
@@ -156,14 +169,24 @@ func (s *Searcher) Search(state *rules.State, me int, budget Budget) Result {
 
 	result.Nodes = s.nodes
 
-	// When every move loses at the same distance the score cannot separate
-	// them, and the choice falls through to whatever order the moves happened
-	// to be tried in. Counting contesters is what ranks them: one rival on the
-	// square is a coin flip, three is a certainty.
-	if result.Depth == 0 || allLosing {
+	switch {
+	case result.Depth == 0:
+		// Nothing completed, so the held one-ply answer is all there is.
 		result.Move = fallback
-		result.AllLosing = allLosing
+	case len(tied) > 1:
+		// Every move loses and they all lose at the same moment, so the score
+		// has nothing left to say and the order they were tried in would
+		// otherwise decide it. Counting rivals is what ranks them: one on the
+		// square is a coin flip, three is close to certain.
+		//
+		// Note this fires on the *search's* verdict, not the one-ply check.
+		// One ply calls a square fatal if a rival can reach it; the search may
+		// have found that one of those losses arrives five turns later than
+		// another, and dying later is strictly better - it is five more turns
+		// in which the rival can blunder.
+		result.Move = s.leastContested(state, me, tied)
 	}
+	result.AllLosing = allLosing
 
 	s.state = nil
 	return result
@@ -172,8 +195,21 @@ func (s *Searcher) Search(state *rules.State, me int, budget Budget) Result {
 // Score is eval.Score, re-exported for readability in this package's bounds.
 type Score = eval.Score
 
-// rootSearch runs one full-depth iteration and reports whether it finished.
-func (s *Searcher) rootSearch(depth int, first board.Direction) (board.Direction, Score, bool) {
+// rootSearch runs one full-depth iteration.
+//
+// Besides the best move it reports the moves that tied it, but only when the
+// best score is itself a terminal loss. That is the one case where the
+// evaluation has nothing left to say: the position is lost against a paranoid
+// opponent whatever we do, every move scores the same, and the choice falls
+// through to whatever order they happened to be tried in.
+//
+// Alpha still narrows between root moves, so a move searched after the best one
+// can come back with a lower bound rather than its true score. That only ever
+// hides a tie, never invents one, so the tie-break is conservative: when it
+// misses, the search's own move stands, which is the move that dies latest.
+func (s *Searcher) rootSearch(depth int, first board.Direction) (
+	move board.Direction, best Score, tied []board.Direction, finished bool,
+) {
 	st := s.state
 	actors := s.chooseActors(st)
 
@@ -182,14 +218,16 @@ func (s *Searcher) rootSearch(depth int, first board.Direction) (board.Direction
 	bestMove := first
 	bestScore := alpha
 
+	var scores [4]Score
 	var order [4]board.Direction
 	n := s.orderMoves(st, s.me, 0, first, &order)
-	for _, d := range order[:n] {
+	for i, d := range order[:n] {
 		moves[s.me] = d
 		score := s.opponentLayer(st, actors, 1, depth, 0, alpha, beta, &moves)
 		if s.stopped {
-			return bestMove, bestScore, false
+			return bestMove, bestScore, nil, false
 		}
+		scores[i] = score
 		if score > bestScore {
 			bestScore, bestMove = score, d
 		}
@@ -197,8 +235,23 @@ func (s *Searcher) rootSearch(depth int, first board.Direction) (board.Direction
 			alpha = bestScore
 		}
 	}
-	return bestMove, bestScore, true
+
+	if !isLost(bestScore) {
+		return bestMove, bestScore, nil, true
+	}
+
+	s.tied = s.tied[:0]
+	for i, d := range order[:n] {
+		if scores[i] == bestScore {
+			s.tied = append(s.tied, d)
+		}
+	}
+	return bestMove, bestScore, s.tied, true
 }
+
+// isLost reports whether a score is one of the terminal-loss values, which sit
+// a small ply offset above eval.Loss.
+func isLost(v Score) bool { return v <= eval.Loss+1024 }
 
 // opponentLayer has each searched opponent commit a move, minimising our score.
 //
@@ -252,9 +305,11 @@ func (s *Searcher) advance(st *rules.State, actors []int, depth, ply int,
 // node searches one position: our move, then the opponents', then recurse.
 func (s *Searcher) node(st *rules.State, depth, ply int, alpha, beta Score) Score {
 	s.nodes++
-	if s.nodes&(clockCheckInterval-1) == 0 && s.overBudget() {
-		s.stopped = true
-		return alpha
+	if s.checkEvery == 1 || s.nodes&(s.checkEvery-1) == 0 {
+		if s.overBudget() {
+			s.stopped = true
+			return alpha
+		}
 	}
 	if s.stopped {
 		return alpha
@@ -480,4 +535,35 @@ func greedyMove(st *rules.State, i int) board.Direction {
 		}
 	}
 	return board.Up
+}
+
+// leastContested picks the move the fewest rivals can reach, breaking a
+// remaining tie on the board's fixed direction order.
+//
+// Only squares that are actually enterable are considered, and that restriction
+// is the whole correctness of this function. A move into a wall or into our own
+// body has no contesters at all, so ranking purely by the count puts certain
+// death first: given a contested square and our own neck, the neck wins,
+// because nobody is competing for it. Walking into ourselves is a certainty and
+// a contested square is a coin flip, and the coin flip is strictly better.
+func (s *Searcher) leastContested(st *rules.State, me int, moves []board.Direction) board.Direction {
+	head := s.topo.At(int(st.Snakes[me].Head()))
+	blocked := st.Passable()
+
+	best := moves[0]
+	bestCount := -1
+
+	for _, d := range moves {
+		next, ok := s.topo.Step(head, d)
+		if !ok || blocked.Has(next) {
+			continue
+		}
+		if _, n := Contest(st, me, next); bestCount < 0 || n < bestCount {
+			bestCount, best = n, d
+		}
+	}
+
+	// Every tied move is a wall or a body. There is nothing to choose between
+	// them, so the first stands.
+	return best
 }
