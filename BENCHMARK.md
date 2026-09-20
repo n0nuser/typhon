@@ -102,6 +102,26 @@ correct, and leaves the whole timeout available. Subtracting the reported
 latency whole, as the predecessor's code did, would have computed a 75ms budget
 from a 500ms turn and collapsed the search to one ply, turn after turn.
 
+## What the `depth=1` arm is, and is not
+
+The headline comparison plays Typhon against Typhon with the search capped at
+one ply. Both arms use the same evaluation, the same weights and the same node
+budget, so the only thing that differs is how far ahead they look. That is a
+clean answer to **does search depth pay, holding evaluation fixed**, which is
+the question this project exists to ask.
+
+It is **not** "Typhon beats `battlesnake-jev`". The one-ply arm is Typhon's own
+evaluation — Voronoi control, tail reachability, opponent confinement — computed
+on the root position. The predecessor's one-ply scorer was a different and much
+simpler function, so the arm is a considerably stronger opponent than the old
+bot was.
+
+**That comparison has not been run.** It would need the old binary answering
+over HTTP against the official CLI, which is about half a second a turn: two
+hundred games is upwards of eight hours, and the in-process harness cannot drive
+an external server. It is the obvious next measurement and it is honest to say
+it is missing rather than let 28-2 stand in for it.
+
 ## The tournament results
 
 _Pending: Phase A (n=30, diagnostic) and Phase B (n=200, publishable) are
