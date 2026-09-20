@@ -1,0 +1,174 @@
+#!/usr/bin/env bash
+#
+# oc-run — headless `opencode run` wrapper with a first-byte watchdog.
+#
+# Why this exists: headless `opencode run` intermittently stalls on a fresh
+# session with zero bytes of output and no exit (upstream bug
+# anomalyco/opencode#48675). Measured locally across fourteen occurrences: a
+# stalled run writes zero bytes and sits under about 5% CPU (measured 0.2% to
+# 2.0%), while a healthy
+# run writes its first bytes within 10-20s and sits near 33% CPU. Every stall
+# cleared on an identical re-run, so this wrapper detects the stall and
+# retries instead of hanging forever. Stalled runs accumulate rather than
+# exiting — three abandoned processes were once found alive at 13.7h, 12.8h
+# and 3.3h — so a caller should sweep for strays with pgrep, not just watch
+# the process it launched.
+#
+# DO NOT lower the deadline below 90 seconds. A stall that recovered on its
+# own after 44.1 seconds is documented in anomalyco/opencode#35870; any
+# deadline under 90s kills runs that were going to succeed. The 120s default
+# is deliberate.
+#
+# Usage: oc-run "<message>" [opencode run options...]
+# Environment:
+#   OC_FIRST_BYTE_DEADLINE  seconds to wait for the first output byte
+#                           (default 120; keep >= 90, see comment above)
+#   OC_IDLE_DEADLINE        seconds of no new output, after the first byte,
+#                           before the run counts as stalled (default 300).
+#                           Not shorter: a genuine run goes quiet for minutes
+#                           while a long test suite executes.
+#   OC_MAX_ATTEMPTS         total attempts before giving up (default 3)
+#
+# Output of each attempt goes to a temp file and is appended to
+# .orchestrator/EXECUTION_LOG.md when the attempt ends. The exit status is
+# the run's own status, or non-zero if every attempt stalled.
+
+set -u
+
+usage() {
+    cat <<'EOF'
+Usage: oc-run "<message>" [opencode run options...]
+
+Wraps `opencode run "$@" --auto` with a first-byte watchdog: if the run
+produces no output within OC_FIRST_BYTE_DEADLINE seconds (default 120), it
+is killed and retried, up to OC_MAX_ATTEMPTS times (default 3). All output
+is appended to .orchestrator/EXECUTION_LOG.md.
+
+See the header comment in this file for the upstream bug this works around.
+EOF
+}
+
+if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
+    usage
+    exit 0
+fi
+
+if [ "$#" -eq 0 ]; then
+    echo "oc-run: a message argument is required (see --help)" >&2
+    exit 2
+fi
+
+LOG=".orchestrator/EXECUTION_LOG.md"
+DEADLINE="${OC_FIRST_BYTE_DEADLINE:-120}"
+IDLE_DEADLINE="${OC_IDLE_DEADLINE:-300}"
+MAX_ATTEMPTS="${OC_MAX_ATTEMPTS:-3}"
+
+if [ "$DEADLINE" -lt 90 ]; then
+    echo "oc-run: OC_FIRST_BYTE_DEADLINE=${DEADLINE}s is below the 90s floor; a" \
+        "documented stall recovered on its own after 44.1s (anomalyco/opencode#35870)." \
+        "Honouring the override anyway." >&2
+fi
+
+tmp="$(mktemp "${TMPDIR:-/tmp}/oc-run-output.XXXXXX")"
+trap 'rm -f "$tmp"' EXIT
+
+# True while the PID exists and is not a zombie. `kill -0` alone cannot
+# distinguish a live process from an unreaped background child.
+proc_alive() {
+    local state
+    state="$(ps -o stat= -p "$1" 2>/dev/null | tr -d '[:space:]')" || return 1
+    [ -n "$state" ] && [ "${state:0:1}" != "Z" ]
+}
+
+attempt=1
+while :; do
+    : > "$tmp"
+    echo "oc-run: attempt ${attempt}/${MAX_ATTEMPTS}: opencode run $* --auto" \
+        "(first-byte deadline ${DEADLINE}s)" | tee -a "$LOG"
+
+    # Run in the background with all output captured, so the watchdog can
+    # inspect bytes as they land. The PID started here is the only thing this
+    # script ever signals; a `pkill -f "opencode run"` would self-match this
+    # wrapper's own command line.
+    opencode run "$@" --auto > "$tmp" 2>&1 &
+    pid=$!
+
+    # The watch stays armed for the WHOLE run, not just until the first byte.
+    # A first-byte-only guard is close to useless: any single byte disarms it,
+    # and a stalling run still emits something trivially early, so one stall ran
+    # 15319s under a 120s first-byte deadline. Two deadlines apply instead —
+    # DEADLINE until the first byte, IDLE_DEADLINE between bytes thereafter.
+    #
+    # This is the shape pi shipped as `withStreamIdleTimeout`
+    # (earendil-works/pi#3020): race every event, rather than measuring the gap
+    # between events that already arrived.
+    #
+    # Byte silence only means "stalled" when the child is still alive. An
+    # outside observer cannot tell a finished-and-quiet run from a stalled one;
+    # this wrapper owns the child, so it can test liveness directly. That is
+    # what makes the check reliable here and unreliable anywhere else.
+    stalled=0
+    stall_kind=""
+    waited=0
+    idle=0
+    seen_bytes=0
+    last_size=0
+    while :; do
+        if ! proc_alive "$pid"; then
+            # Exited on its own: not a stall, whatever the output looks like.
+            # Do not kill, do not retry — report its status below.
+            break
+        fi
+        size=$(wc -c < "$tmp" 2>/dev/null || echo 0)
+        if [ "$size" -gt "$last_size" ]; then
+            last_size="$size"
+            seen_bytes=1
+            idle=0
+        elif [ "$seen_bytes" -eq 1 ]; then
+            idle=$((idle + 1))
+            if [ "$idle" -ge "$IDLE_DEADLINE" ]; then
+                stalled=1
+                stall_kind="idle ${idle}s after ${last_size} bytes"
+                break
+            fi
+        fi
+        if [ "$seen_bytes" -eq 0 ] && [ "$waited" -ge "$DEADLINE" ]; then
+            stalled=1
+            stall_kind="no first byte in ${DEADLINE}s"
+            break
+        fi
+        sleep 1
+        waited=$((waited + 1))
+    done
+
+    if [ "$stalled" -eq 1 ]; then
+        echo "oc-run: stalled (${stall_kind}) on attempt ${attempt}/${MAX_ATTEMPTS};" \
+            "sending TERM to pid ${pid}" | tee -a "$LOG"
+        kill -TERM "$pid" 2>/dev/null
+        grace=0
+        while proc_alive "$pid" && [ "$grace" -lt 2 ]; do
+            sleep 0.5
+            grace=$((grace + 1))
+        done
+        if proc_alive "$pid"; then
+            kill -KILL "$pid" 2>/dev/null
+        fi
+        wait "$pid" 2>/dev/null
+        echo "oc-run: attempt ${attempt} stalled (${stall_kind})" \
+            "(upstream bug anomalyco/opencode#48675); retrying" | tee -a "$LOG"
+        attempt=$((attempt + 1))
+        if [ "$attempt" -gt "$MAX_ATTEMPTS" ]; then
+            echo "oc-run: giving up after ${MAX_ATTEMPTS} attempts, all stalled" >&2
+            exit 1
+        fi
+        continue
+    fi
+
+    # Run finished on its own (healthy or fast-failed). Reap it, append the
+    # captured output to the log, echo it for the caller, pass its status on.
+    wait "$pid"
+    status=$?
+    cat "$tmp" >> "$LOG"
+    cat "$tmp"
+    exit "$status"
+done

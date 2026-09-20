@@ -22,7 +22,8 @@ real rules. Fully deterministic — no model inference anywhere in the move loop
 
 ## Status
 
-Quality gates and the service skeleton. The engine is being built on top.
+Quality gates and the service skeleton. The engine is being built on top; see
+`.orchestrator/TODO_PLAN.md` for what is in flight.
 
 ## Running it
 
@@ -69,3 +70,15 @@ binaries, `internal/` for everything else, no `pkg/`.
 The board, rules, search and eval packages are **pure functions over a state**:
 no I/O, no clock beyond an injected budget, no logging. That is what makes them
 table-testable against the official rules and benchmarkable against a deadline.
+
+## Contributing
+
+`docs/agents/rules.md` is the baseline — change discipline, the complexity
+rules, Go conventions, testing, and the measurement discipline that this project
+exists to get right.
+
+`docs/agents/go-review-checklist.md` is the pre-merge pass. Copy it to
+`.review/<branch>-checklist.md` and fill every row; the completeness guarantee
+lives in the file, not in attention on the day.
+
+`AGENTS.md` governs while a step in `.orchestrator/TODO_PLAN.md` is `ACTIVE`.
