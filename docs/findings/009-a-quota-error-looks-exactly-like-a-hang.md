@@ -43,6 +43,12 @@ elapsed time - is correct and was followed, and it still produced the wrong
 diagnosis, because the rule distinguishes "stalled" from "finished" and this was
 neither.
 
+## See also
+
+The shell traps this run also produced - `pkill -f` self-matching, bash
+re-reading an edited script, a driver reporting success after aborting - are in
+[`docs/agents/gotchas.md`](../agents/gotchas.md) alongside this one.
+
 ## What should be done about it
 
 `oc-run` should grep the provider log for `level=ERROR` before concluding that

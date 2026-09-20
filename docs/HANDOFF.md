@@ -23,11 +23,16 @@ nothing beyond. Typhon reaches a mean depth of 7-8 in a duel inside the same
 ## What is established
 
 - **Search pays: 191-9** at n=200 paired, p<0.0001, CI [91.7%, 97.6%], against a
-  measured floor of 51%. Reproduced in royale (29-1) and wrapped (28-2).
-- **It is not a coin: 200-0.**
-- **The deadline holds**, including on a machine at load average 13.
+  measured floor of 51%. Standard ruleset, 11x11.
+- **It is not a coin: 200-0**, n=200.
 - **There is no start-position bias**: 48.8% [45.3%, 52.2%] over 800 games —
   which contradicts the predecessor's stated explanation for its own noise.
+- **The deadline holds on this hardware under synthetic load**: 2,018 turns at
+  load average 13 on eight cores, zero late. See the scope note below.
+
+Royale (29-1) and wrapped (28-2) point the same way but are **n=30**, and this
+project's own rule is that nothing below 200 games is a finding. They belong in
+the section below, not this one.
 
 ## What is believed but not measured
 
@@ -45,6 +50,16 @@ embodies a guess:
    Not significant, but the sign is wrong and weight 6 may be paying to lose.
 4. **Constrictor.** The one ruleset where capping at one ply did not clearly
    lose (18-11-1, p=0.27).
+5. **That search pays in royale and wrapped.** 29-1 and 28-2 are large margins
+   and they agree with the standard result, which is reassuring and is not
+   evidence. n=30.
+6. **That the deadline holds in production.** It holds here: Typhon against
+   Typhon, one machine, contention supplied by a benchmark suite. Render is
+   different silicon, a shared and unpredictable CPU, and a free plan that
+   sleeps. The mechanism is sound - the clock is read every node and only a
+   completed depth is promoted - but "measured on this laptop" and "measured in
+   production" are different claims. The first turn after a cold start is the
+   one to watch.
 
 ## What to do first
 
@@ -61,6 +76,16 @@ In order of value:
    the old binary over HTTP at ~0.5s a turn — 8+ hours — and the in-process
    harness cannot drive an external server, so it needs a separate driver.
 
+And one standing obligation rather than a task:
+
+**Any change to `internal/search` or `internal/eval` invalidates every number in
+`BENCHMARK.md`.** Re-run `make phase-b` in the same change, or delete the entry.
+This is `docs/agents/rules.md`'s rule about regenerated artifacts, and it is the
+one most likely to be skipped, because the numbers are already there and look
+authoritative. It has already been violated three times in this repository — the
+calibration table went stale twice under load and once against an older search,
+and each time the derived claims in the prose went stale with it.
+
 ## How to run things
 
 ```sh
@@ -72,19 +97,16 @@ go run ./cmd/typhon-bench -calibrate    # what a wall-clock budget buys here
 go run ./cmd/typhon-bench -help-spec    # what an arm can vary
 ```
 
-## Traps, all of them learned the hard way
+## Traps
 
-- **`pkill -f` self-matches** and will kill your own shell. Kill by PID. This is
-  documented in `AGENTS.md` and was then done anyway.
-- **Do not edit a shell script while it is running.** bash re-reads from a byte
-  offset; a Phase A died three runs in with an unbound variable that did not
-  exist when the run started. Freeze a copy — `ROOT` is overridable for this.
-- **A driver with `set -u` but not `set -e`** turns a suite that stopped early
-  into one that reports success.
+The tooling ones are in [`docs/agents/gotchas.md`](agents/gotchas.md) — things
+that silently do the wrong thing rather than failing. The two that bear on the
+bot itself:
+
 - **Node budgets make results immune to CPU contention**; wall-clock budgets do
   not. Never benchmark on a clock.
 - **`you.latency` includes your own think time.** See
-  `docs/findings/007-latency-is-not-round-trip.md`.
+  [findings/007](findings/007-latency-is-not-round-trip.md).
 
 ## Where to read
 

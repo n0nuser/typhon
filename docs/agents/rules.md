@@ -264,7 +264,14 @@ These are not suggestions.
 
 ---
 
-## 7. Communication
+## 7. Gotchas
+
+`docs/agents/gotchas.md` is the list of things that silently do the wrong thing -
+`pkill -f` self-matching, bash re-reading a script it is executing, a driver
+that reports success after aborting. Conventions are here; that file is the
+trap list.
+
+## 8. Communication
 
 After making changes: **bullet points, a few sentences.** What changed and why.
 No preamble, no essay, no summary of the summary. Expand only when asked, when
