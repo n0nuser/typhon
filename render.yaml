@@ -1,0 +1,32 @@
+# Render Blueprint. Deploy with: New > Blueprint, point it at this repo.
+#
+# Region: the engine reported a 44ms round trip from Frankfurt against the
+# Battlesnake servers, which is the measurement this choice rests on. Do not
+# trust it forever - every game logs `engine_rtt_mean_ms`, taken from
+# `you.latency`, which is the round trip measured from the side that matters.
+# If that number climbs, move the service to `ohio`, `oregon` or `virginia`
+# and compare rather than reasoning about it.
+#
+# Plan: `free` spins down after 15 minutes without traffic and takes about a
+# minute to wake. A Battlesnake that is asleep when a game starts returns
+# nothing, the engine moves it `up`, and it usually dies - so free is fine for
+# a demo and wrong for a leaderboard. See README for the two ways round that.
+services:
+  - name: typhon
+    type: web
+    runtime: go
+    region: frankfurt
+    plan: free
+    # Render's default Go build command omits the package path, which fails
+    # here: this module keeps its main under cmd/, so a build at the repo root
+    # finds no Go files. The flags are Render's own - netgo for the pure-Go
+    # resolver, -s -w to strip the binary.
+    buildCommand: go build -tags netgo -ldflags '-s -w' -o app ./cmd/typhon
+    startCommand: ./app
+    healthCheckPath: /
+    autoDeploy: true
+    envVars:
+      - key: LOG_LEVEL
+        value: info
+      - key: TYPHON_AUTHOR
+        value: n0nuser
