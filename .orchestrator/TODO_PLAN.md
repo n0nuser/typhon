@@ -195,13 +195,48 @@ overhead-corrected budget, and the held safe fallback.
   raw reported latency instead would have computed a 75ms budget from a 500ms
   turn and collapsed the search to one ply, turn after turn.
 
-### Step 6 — `cmd/typhon-bench` — `TODO`
+### Step 6 — `cmd/typhon-bench` — `DONE`
 
 In-process harness over the official rules loop, alternating slots, paired
 McNemar plus Wilson, per-path counters, random control arm.
 
 - **Scope:** `cmd/typhon-bench/`.
 - **Acceptance:** the same seed run twice produces an identical move log.
+- **Result:** `ok github.com/n0nuser/typhon/cmd/typhon-bench 36.899s coverage:
+  49.2% of statements`. Reproducibility is asserted as a property rather than
+  against a stored transcript: `TestAGameIsReproducibleFromItsSeed` replays
+  each seed and compares outcome, turn count and every per-arm counter, and
+  `TestParallelismDoesNotChangeTheResults` runs the same four games one at a
+  time and four at a time and requires them identical.
+
+  A first smoke run, full search against one ply at 3,000 nodes:
+
+  ```
+  RESULT smoke: full=4 oneply=0 draw=0 of 4 games
+  PAIRED McNemar on 4 discordant games: chi2=2.25 p=0.1336 -> not separated
+  PATHS  full    mean_depth=4.80 max_depth=10 nodes=2228353 all_losing=0
+  PATHS  oneply  mean_depth=1.00 max_depth=1  nodes=7244    all_losing=4
+  ```
+
+  4-0 and the test still says *not separated*, which is the discipline
+  working. The path counts are the other half of it: they show the two arms
+  really are searching to different depths, so whatever the win column later
+  says, it is not measuring an inert flag.
+
+### Also done — end to end against the real engine
+
+One game per supported ruleset, Typhon against Typhon, through the official
+`battlesnake` CLI over HTTP at `-t 500`:
+
+| Ruleset | Turns |
+| --- | --- |
+| standard | 343 |
+| royale | 97 |
+| constrictor | 49 |
+| wrapped | 505 |
+
+The predecessor silently played `wrapped` with standard logic, treating the
+edge of the board as fatal. This one plays 505 turns of it.
 
 ### Step 7 — Phase A, n=30 — `TODO`
 
