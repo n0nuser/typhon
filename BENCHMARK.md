@@ -251,5 +251,63 @@ is the same control with a much larger margin, and it is the floor that makes
 the rest of the file readable: a component that contributes nothing and one that
 contributes a lot are indistinguishable without it.
 
-_The search-pays arm at n=200 is still running; its result is added when it
-lands, not projected from the n=30 run._
+### Does search pay?
+
+This is the question the project exists to ask. Both arms run the same
+evaluation, the same weights and the same node budget; one is capped at a single
+ply and the other is not.
+
+```
+RESULT search-pays: full=191 oneply=9 draw=0 of 200 games in 2m48s
+SHARE  full took 95.5% of decisive games, 95% CI [91.7%, 97.6%]
+PAIRED McNemar on 200 discordant games: chi2=163.81 p=0.0000 -> full is better
+SLOT   slot0 won 105, slot1 won 95 (slot0 52.5%, 95% CI [45.6%, 59.3%])
+```
+
+**191-9.** 95.5% of decisive games, with a 95% interval of [91.7%, 97.6%] - far
+outside both the measured floor of 51.0% [44.1%, 57.8%] and the slot's own
+52.5% in this very run.
+
+Yes. Search pays, and it is not close.
+
+### Why it pays, which is not the obvious answer
+
+```
+PATHS  full    mean_depth=5.09 max_depth=15 all_losing=7   deaths=9   mean_death_turn=231
+       oneply  mean_depth=1.00 max_depth=1  all_losing=213 deaths=191 mean_death_turn=186
+```
+
+The one-ply arm does not die much sooner - turn 186 against 231. What separates
+them is `all_losing`: the turns on which **every legal move was contested by an
+equal-or-longer rival**, with nothing left to choose but which coin to flip.
+
+The one-ply arm reached those positions **213 times. The searching arm reached
+them 7 times.** Thirty to one, over an identical number of turns.
+
+That is the mechanism, and it is worth stating plainly because it is not what
+"deeper search wins more" suggests. Looking further ahead does not help a snake
+survive a lost position - nothing does, that is what lost means. It stops the
+snake walking into one. The predecessor's own log opens by saying its bot
+"cannot see a trap closing three moves out"; this is that sentence with a number
+attached.
+
+The n=30 run said the same thing at the same ratio - 31 against 1 - which is
+some comfort that the smoke phase was measuring the real effect and not an
+artefact of thirty seeds.
+
+### One counter in these tables reads backwards
+
+`fallbacks` in the Phase B output above is **not** a failure count. It was
+incremented on any turn that completed no search depth, including the turns
+where the game was already decided and the last snake standing was asked to
+move - so it came out exactly equal to the number of games each arm won: 191
+and 9 here, 98 against 102 deaths in the floor run, 200 of 200 for the random
+control.
+
+It is fixed in the harness now, and the fix is deliberately not backdated onto
+these numbers. They were produced by the code as it stood, and quietly editing
+a recorded measurement is the thing `docs/agents/rules.md` forbids.
+
+The counter that does matter, `aborted`, covers nearly every turn in every run -
+36,372 of 37,799 for the searching arm. That is not a failure either: an
+iteration cut short by the budget is precisely what iterative deepening is.
