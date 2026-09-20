@@ -194,4 +194,62 @@ surviving lost positions better. It wins by not walking into them.
 
 ## Phase B — n=200
 
-_Running. Written from its output and not before._
+11x11 standard, 4,000 nodes a turn, seeds 9100-9299, arms alternating starting
+slots, paired McNemar on the discordant games.
+
+### The floor, and a negative result
+
+Two identical configurations, 200 paired games:
+
+```
+RESULT floor: alpha=98 beta=102 draw=0 of 200 games in 11m28s
+PAIRED McNemar on 200 discordant games: chi2=0.04 p=0.8320 -> not separated
+SLOT   slot0 won 102, slot1 won 98 (slot0 51.0%, 95% CI [44.1%, 57.8%])
+```
+
+The arm result is 98-102 and means nothing by construction. The number this run
+exists for is the slot split, and it is **51.0%, 95% CI [44.1%, 57.8%]**.
+
+**There is no detectable start-position advantage in this harness.** That is a
+negative result, and it contradicts the thing the predecessor's log named as the
+likely explanation for its noise:
+
+> The likely culprit is a control that was never run. Both snakes in a duel are
+> the same bot, so whichever *starting position* is better may simply win [...]
+> The `position-bias` run puts two identical deterministic bots on the same
+> sixty seeds to find out what the floor actually is.
+
+That run came back 29-23-8 and was recorded as "the floor is ~56% for one slot,
+not 50%". Re-analysed, **29-23 of 52 decisive games is 55.8% with a 95% interval
+of [42.3%, 68.4%]** - which contains 50%. The floor that was cited as the reason
+every other comparison had been measured against a wrong baseline was itself
+never established. It was sixty games saying almost nothing, read as a finding.
+
+The honest version, at 200 games with the slots alternating, is that the slot is
+worth nothing anyone can measure. The random control below independently agrees:
+its slot split is exactly 100-100.
+
+The other number worth quoting from that run is the harness's own power note:
+**about 9,604 decisive games would be needed** to separate two configurations
+splitting 98-102. That is the scale at which small effects live, and it is worth
+keeping in mind before reading anything into a handful of games.
+
+### The random control
+
+```
+RESULT random-floor: search=200 coin=0 draw=0 of 200 games in 29s
+PAIRED McNemar on 200 discordant games: chi2=198.00 p=0.0000 -> search is better
+SLOT   slot0 won 100, slot1 won 100 (slot0 50.0%, 95% CI [43.1%, 56.9%])
+PATHS  search  deaths=0
+       coin    deaths=200 mean_death_turn=24
+```
+
+**200-0.** The coin dies in every game, on average at turn 24; the searching arm
+did not die once. The predecessor's equivalent control lost 2-18, and that
+result was what told it its model was doing something rather than nothing. This
+is the same control with a much larger margin, and it is the floor that makes
+the rest of the file readable: a component that contributes nothing and one that
+contributes a lot are indistinguishable without it.
+
+_The search-pays arm at n=200 is still running; its result is added when it
+lands, not projected from the n=30 run._
