@@ -45,7 +45,9 @@ While a step is `ACTIVE`, the LLM's write access is exactly two files.
 
 - Read anything — source, tests, logs, `git diff`, `git log`, `gh` output.
 - Run read-only commands (`rg`, `go doc`, `go list`, `git status`, `ls`, `cat`).
-- Write `.orchestrator/TODO_PLAN.md` and `.orchestrator/EXECUTION_LOG.md`.
+- Write `.orchestrator/TODO_PLAN.md`, `.orchestrator/EXECUTION_LOG.md` and
+  `.orchestrator/briefs/`. The briefs are how §2 rule 6 delivers a long
+  instruction, so writing them is orchestration, not mutation of the tree.
 - Emit OpenCode command blocks and prose analysis.
 
 **Forbidden — no exceptions, no "this one is trivial":**
