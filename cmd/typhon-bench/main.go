@@ -92,6 +92,7 @@ func run() error {
 		maxTurns = flag.Int("max-turns", 1500, "abandon a game after this many turns")
 		parallel = flag.Int("p", runtime.NumCPU(), "games to run at once")
 		helpSpec = flag.Bool("help-spec", false, "list the arm spec keys and exit")
+		calib    = flag.Bool("calibrate", false, "report how many nodes a wall-clock budget buys here, and exit")
 	)
 	flag.Parse()
 
@@ -103,6 +104,10 @@ func run() error {
 	cfg, err := newRunConfig(*gameType, *mapName, *width, *height, *maxTurns)
 	if err != nil {
 		return err
+	}
+
+	if *calib {
+		return calibrate(cfg)
 	}
 
 	a, err := parseArm(*nameA, *specA, 1)
