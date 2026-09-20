@@ -96,9 +96,9 @@ func report(label string, arms [2]arm, results []gameResult, elapsed time.Durati
 	for i, a := range arms {
 		c := perArm[i]
 		fmt.Printf("PATHS  %-10s turns=%d mean_depth=%.2f max_depth=%d nodes=%d "+
-			"fallbacks=%d aborted=%d all_losing=%d first_death=%.0f\n",
+			"fallbacks=%d aborted=%d all_losing=%d deaths=%d mean_death_turn=%.0f\n",
 			a.name, c.turns, safeDiv(c.depthSum, c.turns), c.maxDepth, c.nodes,
-			c.fallbacks, c.aborted, c.allLosing, safeDiv(c.firstDeath, played))
+			c.fallbacks, c.aborted, c.allLosing, c.deaths, safeDiv(c.deathTurnSum, c.deaths))
 		if !a.random && c.depthSum == 0 {
 			fmt.Printf("       WARNING %s never completed a single depth. Whatever this run\n"+
 				"       measured, it was not that arm's search.\n", a.name)

@@ -30,14 +30,19 @@ const (
 // can be checked against how often it was even reached, before anyone reads
 // the win column.
 type counters struct {
-	turns      int
-	nodes      int64
-	depthSum   int
-	maxDepth   int
-	fallbacks  int
-	allLosing  int
-	aborted    int
-	firstDeath int
+	turns     int
+	nodes     int64
+	depthSum  int
+	maxDepth  int
+	fallbacks int
+	allLosing int
+	aborted   int
+	// deaths counts the games this arm did not survive, and deathTurnSum the
+	// turns those deaths happened on. Both, because a mean over every game
+	// including the ones it won reads as an early death when it is really a
+	// rare one: two deaths in thirty games at turn 165 averages to 11.
+	deaths       int
+	deathTurnSum int
 }
 
 func (c *counters) add(o counters) {
@@ -50,7 +55,8 @@ func (c *counters) add(o counters) {
 	c.fallbacks += o.fallbacks
 	c.allLosing += o.allLosing
 	c.aborted += o.aborted
-	c.firstDeath += o.firstDeath
+	c.deaths += o.deaths
+	c.deathTurnSum += o.deathTurnSum
 }
 
 // gameResult is one played game.
@@ -150,8 +156,9 @@ func playGame(cfg runConfig, arms [2]arm, seed int, aFirst bool) gameResult {
 		res.turns = state.Turn
 
 		for i := range players {
-			if players[i].stats.firstDeath == 0 && !aliveIn(state, ids[i]) {
-				players[i].stats.firstDeath = state.Turn
+			if players[i].stats.deaths == 0 && !aliveIn(state, ids[i]) {
+				players[i].stats.deaths = 1
+				players[i].stats.deathTurnSum = state.Turn
 			}
 		}
 
