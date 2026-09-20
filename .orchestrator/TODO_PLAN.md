@@ -251,11 +251,28 @@ The floor, the random control, depth-1 vs full, and the structural arms.
 
 - **Acceptance:** McNemar and Wilson printed; the floor measured, not assumed.
 
-### Step 9 — the review checklist — `TODO`
+### Step 9 — the review checklist — `DONE`
 
 Walk `docs/agents/go-review-checklist.md` into `.review/`, every row filled.
 
 - **Acceptance:** zero blank verdict cells; findings derived from the ledger.
+- **Result:** `.review/main-checklist.md`, 58 rows, zero blank. **Four FAIL
+  rows, three of them CRITICAL**, all fixed with tests:
+
+  - A completed search was overruled by the one-ply safety check whenever every
+    neighbour was contested - throwing away the search's knowledge that one
+    loss arrives five turns later than another.
+  - The tie-break itself preferred certain death: ranking by contester count
+    puts a self-collision first, because nobody competes for our own neck.
+  - The deadline was missed under load - a 2ms budget running to 86ms - at a
+    64-node clock interval. A shared CPU is the realistic deployment.
+  - A path counter read backwards, printing a mean death turn of 11 for an arm
+    that died twice in thirty games at turn 165.
+
+  **`make check` was green throughout the period every one of those was
+  present.** Two were silent preferences for a worse move, with nothing in any
+  log to point at. That is the whole argument for §0's rule that the loop
+  suspends this review rather than replacing it.
 - **Note:** this is the step §0 exists for. The loop suspended the checklist, so
   by construction it has never run against the branch the loop just built, and
   the green gate that ends the loop is not a substitute for it.

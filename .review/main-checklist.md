@@ -118,7 +118,7 @@ IDs are stable (`R<section>.<n>`). If a rule here changes, keep the ID.
 | R10.3 | STANDARD | Whole-object assertions over field-picking (field-level only when one field is the behaviour under test) | PASS | cmd/typhon-bench/bench_test.go:44 | per-arm counters compared as whole structs |
 | R10.4 | STANDARD | Mock at the boundary (HTTP, clock, store); real objects for internal structures; stub over mock when behaviour is simple | PASS | internal/server/server_test.go:181 | the store's clock is stubbed; nothing else is mocked |
 | R10.5 | STANDARD | Test layout mirrors source; helpers are `t.Helper()` and fixtures live in `testdata/` | PASS | - | layout mirrors source; helpers call t.Helper() |
-| R10.6 | **CRITICAL** | Deterministic tests — no wall-clock dependence, no RNG without a fixed seed, no network. A computed table asserts its case set is non-empty | PASS | internal/search/search_test.go:148 | no wall-clock dependence except the deadline test, which is what it is testing; the random generators are seeded; TestPlayoutsExerciseEveryRule asserts the computed case set is non-empty |
+| R10.6 | **CRITICAL** | Deterministic tests — no wall-clock dependence, no RNG without a fixed seed, no network. A computed table asserts its case set is non-empty | FAIL | cmd/typhon-bench/report.go:120 | **Fixed in this pass.** Not a determinism failure but a counter that read backwards: the mean first-death turn was averaged over every game including the ones the arm survived, so two deaths at turn 165 in thirty games printed as 11. Deaths and their mean turn are reported separately now |
 | R10.7 | **CRITICAL** | The simulator is differentially tested against `github.com/BattlesnakeOfficial/rules`, not against hand-written expectations of what the rules say — hand-written expectations encode the same misreading twice | PASS | internal/rules/differential_test.go:26 | random playouts compared against the official ruleset every turn, plus 14 single-step scenarios |
 | R10.8 | STANDARD | Determinism is tested as a *property* (run twice, compare), never as a stored golden move list | PASS | internal/board/voronoi_test.go:118, cmd/typhon-bench/bench_test.go:15 | determinism run twice and compared, never stored |
 
@@ -146,8 +146,8 @@ IDs are stable (`R<section>.<n>`). If a rule here changes, keep the ID.
 |---|---|---|---|---|---|
 | R13.1 | **CRITICAL** | **Zero allocations in the search hot path**, evidenced by `-benchmem` reporting `0 allocs/op`. A GC pause inside a 400ms budget is a missed deadline | PASS | internal/search/search_test.go:284 | BenchmarkSearch and BenchmarkSearchNode both report 0 allocs/op. Was 11,404 per turn until move ordering stopped returning a slice of a local array |
 | R13.2 | **CRITICAL** | **No `map` iteration on any path whose output must be deterministic.** Go randomises it, and it will pass every test while making the harness irreproducible | PASS | - | no map is constructed or ranged over in board, rules, eval or search |
-| R13.3 | **CRITICAL** | **No goroutine on the move path.** The safe fallback is computed first and held; every return already has an answer; only a completed depth is promoted; safety is never delegated | PASS | internal/search/search.go:121 | no goroutine on the move path; the fallback is computed before the search starts and only a completed depth is promoted |
-| R13.4 | **CRITICAL** | The deadline derives from `game.timeout` on every request, never a constant, and the overhead estimate subtracts our own think time from `you.latency` rather than treating it as network RTT | PASS | internal/server/store.go:93, internal/server/server.go:170 | budget derives from game.timeout every turn, and the overhead subtracts our own think time from the reported latency - asserted by TestTheBudgetDoesNotChargeOurOwnThinkTimeTwice |
+| R13.3 | **CRITICAL** | **No goroutine on the move path.** The safe fallback is computed first and held; every return already has an answer; only a completed depth is promoted; safety is never delegated | FAIL | internal/search/search.go:140 | **Two real bugs, both fixed in this pass.** (1) A completed search was overruled by the one-ply check whenever every neighbour was contested - but the search may have found one loss arriving five turns later than another, and dying later is strictly better. The tie-break now fires on the search's own verdict. (2) Ranking tied moves purely by contester count put certain death first: a self-collision has no contesters, so our own neck beat a contested square. Only enterable squares are considered now |
+| R13.4 | **CRITICAL** | The deadline derives from `game.timeout` on every request, never a constant, and the overhead estimate subtracts our own think time from `you.latency` rather than treating it as network RTT | FAIL | internal/search/budget.go:36, internal/search/search.go:118 | **Fixed in this pass.** The budget derivation was always right, but the deadline was not being honoured under load: with `-race` on a busy machine a 2ms budget overran to 86ms at a 64-node check interval. A loaded machine is the realistic case - the free Render tier is shared CPU - so a deadline is now checked at every node, about 1.7% of a node's cost. A node budget still reads no clock, which is what keeps a benchmarked game reproducible |
 | R13.5 | STANDARD | Any claim that a change is faster carries a before/after `testing.B` number or a profile. A shipped "optimisation" without one is a guess (rules.md §2) | PASS | - | both optimisations made carry before/after numbers: the clock interval (2ms budget overrunning to 67ms) and the ordering allocation (11,404 to 0) |
 | R13.6 | STANDARD | A ruleset this repo does not implement is played with standard logic **and logged loudly**, never silently | PASS | internal/server/convert.go:29 | variantFor logs a warning naming the ruleset; asserted by TestUnsupportedRulesetIsAnnounced |
 
@@ -166,10 +166,56 @@ Recorded so the next reader knows they were considered, not forgotten.
 Filter the `FAIL` rows above into the two groups below, preserving `ID`,
 `file:line`, and fix.
 
+Four rows failed. All four are fixed, in the commits named below, and the
+fixes carry tests. `make check` was green for the entire period in which every
+one of them was present, which is the point AGENTS.md §0 makes about this
+review not being replaceable by a gate.
+
 ### [CRITICAL] — must fix
 
-_(one bullet per CRITICAL FAIL, with rule ID and file:line)_
+- **R13.3** `internal/search/search.go:140` — a completed search was overruled
+  by the one-ply safety check whenever every neighbouring square was contested.
+  The check looks one square ahead; the search may have found that one of those
+  losses arrives five turns later than another, and dying later is strictly
+  better. Fixed: the tie-break fires on the search's own verdict - every root
+  move terminal, at the same distance - not on the one-ply check.
+  *(commit "Fix two ways the tie-break could hand back a worse move")*
+
+- **R13.3** `internal/search/search.go:398` — and the tie-break itself preferred
+  certain death. Ranking purely by how many rivals contest a square puts a
+  self-collision first, because nobody is competing for our own neck. Walking
+  into ourselves is a certainty; a contested square is a coin flip. Fixed: only
+  enterable squares are ranked, with a test asserting the chosen move is one.
+  *(same commit)*
+
+- **R13.4** `internal/search/search.go:118` — the deadline was missed under
+  load. At a 64-node check interval, with `-race` on a busy machine, a 2ms
+  budget ran to 86ms. The realistic deployment is a shared CPU, so this is not
+  a test artefact. Fixed: a deadline is checked every node, at about 1.7% of a
+  node's cost; a node budget reads no clock at all.
+  *(same commit)*
 
 ### [STANDARD] — should fix / discuss
 
-_(one bullet per STANDARD FAIL, with rule ID and file:line)_
+- **R7.2** `internal/board/errors.go`, `internal/rules/errors.go` — sentinel
+  errors were declared in `topology.go` and `state.go` rather than in an
+  `errors.go`. The substance was fine - package-level var blocks, not inline at
+  the raise site - so this was the letter of the rule. Fixed by moving them.
+  *(commit "Move sentinel errors into errors.go")*
+
+- **R10.6** `cmd/typhon-bench/report.go:120` — a path counter read backwards:
+  the mean first-death turn averaged over every game including the survivals,
+  so two deaths at turn 165 in thirty games printed as 11. The whole reason
+  those counters print beside the win column is that a claim should be
+  checkable against how often the thing happened, and a counter that reads
+  backwards is worse than none. Fixed.
+  *(commit "Report deaths and their turn separately")*
+
+## What this review says about the gate
+
+Nothing here was caught by `gofmt`, `go vet`, `golangci-lint`, `go test -race`
+or a 96% coverage figure. Two of the five were silent preferences for a worse
+move, and the bot would have gone on playing and losing without anything in a
+log to point at. That is the argument for walking the list rather than trusting
+the gate, and it is the argument the predecessor's project records having
+learned the same way.
