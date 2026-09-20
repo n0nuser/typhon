@@ -111,6 +111,28 @@ turns=270 alive=true  mean_depth=8 max_depth=12 nodes=27288070
 **No turn was late in 540.** `max_think` of 425ms against a 500ms timeout is the
 budget being spent rather than left on the table.
 
+### And under load, which is the case that matters
+
+The run above had the machine to itself. Render's free tier does not. So the
+games were repeated with the current binary **while a full benchmark suite was
+running**, at a load average of 13 on eight cores:
+
+| Ruleset | Turns | Mean depth | Max depth | Max think | Late turns |
+| --- | --- | --- | --- | --- | --- |
+| standard | 453 | 7 | 13-14 | 444ms | **0** |
+| royale | 249 | 6-7 | 17 | 451ms | **0** |
+| constrictor | 52 | 7-9 | 19-20 | 431ms | **0** |
+
+**1,508 turns, not one of them late.** `max_think` sits at 428-451ms against a
+500ms budget throughout, so the search is spending its allowance and stopping,
+not finishing early by luck.
+
+This is the check that matters for the clock-interval fix. At the original
+64-node interval a 2ms budget on a loaded machine overran to 86ms; a node here
+costs a microsecond and up, not the tens of nanoseconds the usual
+chess-engine reasoning assumes. Reading the clock every node costs about 1.7%
+and buys the guarantee outright.
+
 `engine_overhead=0s` is the budget model working, not failing. Played locally
 there is no network to pay for, so the latency the engine reports is almost
 entirely our own thinking, and the overhead it leaves is nothing - which is
