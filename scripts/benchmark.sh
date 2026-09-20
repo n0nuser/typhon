@@ -12,7 +12,12 @@ set -euo pipefail
 
 PHASE="${1:-a}"
 OUT="${2:-${TMPDIR:-/tmp}/typhon-bench}"
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# ROOT can be overridden so that a frozen copy of this script can be run from
+# anywhere. Freezing a copy is worth doing for a long run: bash re-reads a
+# script from a byte offset as it executes, so editing this file while a suite
+# is running makes it resume in the middle of different text - which is how a
+# Phase A once died three runs in with an unbound variable.
+ROOT="${ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 
 case "$PHASE" in
     a) GAMES=30; SEED=9000 ;;
