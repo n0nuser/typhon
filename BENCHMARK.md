@@ -129,8 +129,12 @@ at 428-451ms against a 500ms budget throughout, so the search is spending its
 allowance and stopping, not finishing early by luck.
 
 Constrictor reaching depth 20 is not an anomaly: the board fills, the branching
-collapses, and the same budget goes further. It is the ruleset where lookahead
-should matter most and the search behaves accordingly.
+collapses, and the same budget goes further.
+
+It would be natural to add "so lookahead matters most there", and the data says
+otherwise - constrictor is the one ruleset where capping the search at a single
+ply did *not* clearly lose (18-11-1, p=0.27). Reaching a depth and that depth
+being worth anything are different claims, and only the first is measured here.
 
 This is the check that matters for the clock-interval fix. At the original
 64-node interval a 2ms budget on a loaded machine overran to 86ms; a node here
@@ -380,7 +384,53 @@ is worth knowing about even from a weak signal, and because the path counts show
 whether the component was reached at all - which is the check the predecessor
 skipped when it measured a feature whose threshold was never crossed.
 
-_Running; filled from the output._
+### Evaluation and search options
+
+| Arm | With | Without | Paired p | Reading |
+| --- | --- | --- | --- | --- |
+| Voronoi control | 16 | 14 | 0.855 | not separated |
+| tail reachability | 19 | 11 | 0.201 | not separated |
+| opponent confinement | 11 | **19** | 0.201 | not separated, and the sign is wrong |
+| model 2 opponents vs 1 | 14 | 16 | 0.855 | not separated |
+
+**None of the four separates**, which at thirty games is the only honest
+reading available. The floor run's power note puts the scale in perspective: two
+configurations splitting 98-102 would need about 9,604 decisive games.
+
+Two of these are worth saying more about, precisely because they are the kind of
+row that gets over-read.
+
+**Opponent confinement points the wrong way.** Switching it *off* won 19-11.
+That is not significant and thirty games could not make it so, but "does nothing"
+and "costs games" are different problems and the direction is at least a reason
+to look rather than to assume. It carries weight 6 in `eval.Default()`.
+
+**Tail reachability points the right way**, 19-11, at exactly the same p. It
+carries weight 40, the largest in the evaluation, so it is the one arm where an
+answer would actually change the bot. It is being re-run at n=200 below.
+
+That two arms with opposite meanings produce the identical statistic is the
+clearest possible illustration of what thirty games buys.
+
+### Per ruleset
+
+Full search against one ply, in each supported ruleset:
+
+| Ruleset | Full | One ply | Paired p | Reading |
+| --- | --- | --- | --- | --- |
+| royale | 29 | 1 | <0.0001 | search pays |
+| wrapped | 28 | 2 | <0.0001 | search pays |
+| constrictor | 18 | 11 (1 draw) | 0.265 | not separated |
+
+Royale and wrapped reproduce the standard result at the same magnitude, which
+is some evidence the effect is about lookahead rather than about one ruleset's
+quirks.
+
+**Constrictor is the exception, and it is the interesting one.** There is no
+food, every snake grows every turn, and the board fills until it is mostly
+forced - so there may simply be less for lookahead to find. That is a
+hypothesis, not a result: 18-11-1 at n=30 is not separated, and the honest
+statement is that this run does not know.
 
 ## Open questions
 
