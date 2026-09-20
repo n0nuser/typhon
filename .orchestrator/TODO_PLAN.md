@@ -289,8 +289,17 @@ The floor, the random control, depth-1 vs full, and the structural arms.
   number of turns. Depth does not help a snake survive a lost position; it
   stops it walking into one.
 
-  The remaining structural arms are running at n=30 and will be reported as
-  underpowered rather than as findings.
+  The structural arms all came back **not separated** at n=30, which is the
+  only honest reading thirty games allows. Two are worth following up:
+  opponent confinement points the *wrong* way (19-11 for switching it off),
+  and tail reachability points the right way at exactly the same p while
+  carrying the largest weight in the evaluation. The latter is being re-run at
+  n=200; the former is recorded as an open question rather than acted on.
+
+  Per ruleset, search beats one ply in royale (29-1) and wrapped (28-2) at the
+  same magnitude as standard. **Constrictor is the exception** - 18-11-1,
+  p=0.27, not separated - which also corrected a claim in `BENCHMARK.md` that
+  had reasoned from "reaches depth 20" to "lookahead matters most there".
 
 ### Step 9 — the review checklist — `DONE`
 
