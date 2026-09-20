@@ -136,7 +136,7 @@ opponent confinement.
   goroutines is a race; the contract is now written on the type and the
   harness gives every game its own.
 
-### Step 4 — `internal/search` — `TODO`
+### Step 4 — `internal/search` — `DONE`
 
 Iterative deepening, simultaneous-move paranoid alpha-beta, TT, move ordering,
 opponent reduction, and the dual time/node budget.
@@ -145,6 +145,27 @@ opponent reduction, and the dual time/node budget.
 - **Acceptance:** `go test ./internal/search/... -race -count=1` and
   `go test -run '^$' -bench . -benchmem ./internal/search` reporting nodes/sec
   and `0 allocs/op` on the hot path.
+- **Result:** `ok github.com/n0nuser/typhon/internal/search 10.014s coverage:
+  96.8% of statements`, and
+
+  ```
+  BenchmarkSearch-8       18   60299485 ns/op   18 B/op   0 allocs/op
+  BenchmarkSearchNode-8   12  101157366 ns/op   5050 ns/node   0 allocs/op
+  ```
+
+  **Depth 7 in a duel at 40,000 nodes**, against the predecessor's one ply.
+  At 5µs a node a 400ms budget is worth about 80,000 of them.
+- **Two things that had to be measured rather than assumed:**
+  - The deadline was being missed by thirty-fold - a 2ms budget took 67ms -
+    because the clock was read every 1024 nodes on the usual chess-engine
+    reasoning that `time.Now` is too expensive per node. That reasoning does
+    not transfer: a node here rebuilds an occupancy map and hashes a position,
+    so it costs a microsecond and up, not tens of nanoseconds. At an interval
+    of 64 the clock is under a percent of a node.
+  - Move ordering returned `out[:n]` from a local array, which escapes. Once
+    per actor per node, that was **11,404 allocations a turn** - a GC pause
+    waiting to land inside the budget. Filling a caller-owned array took the
+    whole search to zero.
 
 ### Step 5 — `internal/server` and `cmd/typhon` — `TODO`
 
