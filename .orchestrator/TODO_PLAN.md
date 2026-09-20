@@ -87,7 +87,7 @@ Wire types, and the bitset/topology/flood-fill/Voronoi primitives.
   evaluation-bound, this is where a profile should look first. Not optimised
   now — `rules.md` §2 says a profile comes before the optimisation.
 
-### Step 2 — `internal/rules` and the differential tests — `TODO`
+### Step 2 — `internal/rules` and the differential tests — `DONE`
 
 The forward simulator, make/unmake, and the differential test against the
 official rules module in two modes (strict with food spawning off; re-sync with
@@ -95,6 +95,24 @@ it on).
 
 - **Scope:** `internal/rules/`, `go.mod`.
 - **Acceptance:** `go test ./internal/rules/... -race -count=1`
+- **Result:** `ok github.com/n0nuser/typhon/internal/rules 3.369s coverage:
+  94.8% of statements`, and `BenchmarkApplyUnapply-8 5652693 210.5 ns/op
+  0 B/op 0 allocs/op` - about 4.7M simulator steps a second.
+
+  Against Voronoi's 6.2µs that settles where the search's time will go: one
+  evaluation costs thirty nodes. If the search turns out evaluation-bound, the
+  structural fixes are to evaluate only at leaves that survive the cutoff, or
+  to cache the partition in the transposition table - both cheaper than
+  micro-optimising the bitset loop, and neither worth doing before a profile
+  says so.
+- **The finding worth keeping:** the differential test passed on its first run
+  while testing almost nothing. Uniformly random moves gave 3.5 turns a game,
+  two growths across sixty games, and **not one head-to-head** - the rule the
+  opening of every game turns on. Picking at random among the moves that are
+  not immediately fatal took standard from 213 turns to 3,395 and made every
+  elimination cause fire. `TestPlayoutsExerciseEveryRule` now asserts that
+  reach, so a future change to the move policy fails loudly instead of
+  quietly making the differential test vacuous.
 
 ### Step 3 — `internal/eval` — `TODO`
 
