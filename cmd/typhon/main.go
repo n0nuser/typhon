@@ -6,44 +6,41 @@
 //
 // Configuration is read from the environment:
 //
-//	PORT            listen port (default 8080)
-//	LOG_LEVEL       debug, info, warn or error (default info)
-//	TYPHON_AUTHOR   author shown on the info response
+//	PORT              listen port (default 8080)
+//	LOG_LEVEL         debug, info, warn or error (default info)
+//	TYPHON_OPPONENTS  how many rivals the search models properly (default 2)
+//	TYPHON_TABLE_BITS transposition table size, as a power of two (default 20)
+//	TYPHON_NO_TABLE   set to "true" to search without the table
+//	TYPHON_AUTHOR     author shown on the info response
 //	TYPHON_COLOR, TYPHON_HEAD, TYPHON_TAIL
-//	                override the look; several of these servers play in the
-//	                same local match, where distinct colours are worth having
+//	                  override the look; several of these servers play in the
+//	                  same local match, where distinct colours are worth having
 package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/n0nuser/typhon/internal/api"
+	"github.com/n0nuser/typhon/internal/search"
+	"github.com/n0nuser/typhon/internal/server"
 )
 
-// shutdownGrace is how long in-flight turns get to finish on SIGTERM. A
-// Battlesnake turn is bounded by the engine's own timeout, so this only has to
-// outlast one of them.
+// shutdownGrace is how long in-flight turns get to finish on SIGTERM. A turn is
+// bounded by the engine's own timeout, so this only has to outlast one.
 const shutdownGrace = 5 * time.Second
 
-// info is the body returned by GET /.
-//
-// Typhon is the serpent-headed monster that fought Zeus and was buried under
-// Etna, so the look is a fanged head and a deep volcanic red.
-type info struct {
-	APIVersion string `json:"apiversion"`
-	Author     string `json:"author,omitempty"`
-	Color      string `json:"color,omitempty"`
-	Head       string `json:"head,omitempty"`
-	Tail       string `json:"tail,omitempty"`
-	Version    string `json:"version,omitempty"`
-}
+// gameTTL drops games that never sent /end, which is what the engine does with
+// a match it abandons.
+const gameTTL = 30 * time.Minute
 
 func main() {
 	if err := run(); err != nil {
@@ -56,7 +53,9 @@ func run() error {
 	log := newLogger()
 	slog.SetDefault(log)
 
-	self := info{
+	// Typhon is the serpent-headed monster that fought Zeus and was buried
+	// under Etna, so: a fanged head and a deep volcanic red.
+	info := api.InfoResponse{
 		APIVersion: "1",
 		Author:     env("TYPHON_AUTHOR", "n0nuser"),
 		Color:      env("TYPHON_COLOR", "#8A0303"),
@@ -65,9 +64,16 @@ func run() error {
 		Version:    env("TYPHON_VERSION", "0.1.0"),
 	}
 
+	cfg := search.DefaultConfig()
+	cfg.Opponents = envInt("TYPHON_OPPONENTS", cfg.Opponents)
+	cfg.TableBits = uint(envInt("TYPHON_TABLE_BITS", int(cfg.TableBits)))
+	cfg.UseTable = !envBool("TYPHON_NO_TABLE", false)
+
+	handler := server.New(info, cfg, gameTTL, log)
+
 	srv := &http.Server{
 		Addr:    ":" + env("PORT", "8080"),
-		Handler: routes(self, log),
+		Handler: handler.Routes(),
 		// Explicit timeouts: an unbounded server will eventually hang.
 		ReadHeaderTimeout: 3 * time.Second,
 		ReadTimeout:       5 * time.Second,
@@ -80,7 +86,10 @@ func run() error {
 
 	errs := make(chan error, 1)
 	go func() {
-		log.Info("listening", "addr", srv.Addr, "color", self.Color, "head", self.Head, "tail", self.Tail)
+		log.Info("listening",
+			"addr", srv.Addr, "opponents", cfg.Opponents,
+			"table", cfg.UseTable, "table_bits", cfg.TableBits,
+			"color", info.Color, "head", info.Head, "tail", info.Tail)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			errs <- err
 			return
@@ -99,20 +108,6 @@ func run() error {
 	}
 }
 
-// routes serves the Battlesnake webhooks. Only the info webhook is wired here;
-// the move loop arrives with internal/server.
-func routes(self info, log *slog.Logger) *http.ServeMux {
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(self); err != nil {
-			// The status line is already written, so this can only be logged.
-			log.Error("write info response", "err", err)
-		}
-	})
-	return mux
-}
-
 func newLogger() *slog.Logger {
 	level := slog.LevelInfo
 	switch strings.ToLower(os.Getenv("LOG_LEVEL")) {
@@ -128,6 +123,20 @@ func newLogger() *slog.Logger {
 
 func env(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
+}
+
+func envInt(key string, fallback int) int {
+	if v, err := strconv.Atoi(os.Getenv(key)); err == nil {
+		return v
+	}
+	return fallback
+}
+
+func envBool(key string, fallback bool) bool {
+	if v, err := strconv.ParseBool(os.Getenv(key)); err == nil {
 		return v
 	}
 	return fallback

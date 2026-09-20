@@ -167,13 +167,33 @@ opponent reduction, and the dual time/node budget.
     waiting to land inside the budget. Filling a caller-owned array took the
     whole search to zero.
 
-### Step 5 — `internal/server` and `cmd/typhon` — `TODO`
+### Step 5 — `internal/server` and `cmd/typhon` — `DONE`
 
 The four webhooks, per-(game id + snake id) state with TTL eviction, the
 overhead-corrected budget, and the held safe fallback.
 
 - **Scope:** `internal/server/`, `cmd/typhon/`.
 - **Acceptance:** `go test ./internal/server/... ./cmd/... -race -count=1`
+- **Result:** both green, and a real 270-turn game against the official
+  `battlesnake` CLI, Typhon against Typhon, 11x11 standard, `-t 500`:
+
+  ```
+  turns=270 alive=true  mean_depth=8 max_depth=12 nodes=27288070
+    fallbacks=1 max_think=425.675392ms timeout_overruns=0
+  turns=270 alive=false mean_depth=7 max_depth=11 nodes=26762113
+    fallbacks=0 max_think=425.945523ms timeout_overruns=0
+  ```
+
+  **Mean depth 8 against the predecessor's one ply, and no turn late in 540.**
+  The predecessor's own log records first deaths at turn 8 to 12; this game
+  ran to 270.
+
+  `engine_overhead=0s` is the budget model working rather than failing. Played
+  locally there is no network to pay for, so the engine's reported latency is
+  almost entirely our own think time, and the overhead it leaves is nothing -
+  which is correct, and leaves the whole timeout available. Subtracting the
+  raw reported latency instead would have computed a 75ms budget from a 500ms
+  turn and collapsed the search to one ply, turn after turn.
 
 ### Step 6 — `cmd/typhon-bench` — `TODO`
 
