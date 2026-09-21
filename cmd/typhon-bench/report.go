@@ -66,15 +66,26 @@ func report(label string, arms [2]arm, results []gameResult, elapsed time.Durati
 			arms[0].name, 100*float64(aWins)/float64(decisive), 100*lo, 100*hi)
 	}
 
-	chi, p := mcnemar(aWins, bWins)
-	fmt.Printf("PAIRED McNemar on %d discordant games: chi2=%.2f p=%.4f -> %s\n",
-		decisive, chi, p, verdict(p, arms, aWins, bWins))
+	// The verdict is taken on **boards**, not games. Each board is played
+	// twice with the contestants' slots exchanged, so the two games of a pair
+	// are not independent: counting them separately would claim twice the
+	// evidence it has. A board where each arm won once is a board the bias
+	// decided rather than the configuration, and it carries no information -
+	// which is the whole point of mirroring, and is why the split rate is
+	// printed beside the result.
+	aBoards, bBoards, split := boardOutcomes(results)
+	informative := aBoards + bBoards
+	chi, p := mcnemar(aBoards, bBoards)
+	fmt.Printf("BOARDS %s won %d, %s won %d, split %d of %d boards\n",
+		arms[0].name, aBoards, arms[1].name, bBoards, split, aBoards+bBoards+split)
+	fmt.Printf("PAIRED McNemar on %d decided boards: chi2=%.2f p=%.4f -> %s\n",
+		informative, chi, p, verdict(p, arms, aBoards, bBoards))
 
-	if p >= 0.05 && decisive > 0 {
-		rate := float64(max(aWins, bWins)) / float64(decisive)
-		if need := requiredPairs(rate); need > decisive {
-			fmt.Printf("POWER  at this split, about %d decisive games would be needed to separate them;\n"+
-				"       this run had %d.\n", need, decisive)
+	if p >= 0.05 && informative > 0 {
+		rate := float64(max(aBoards, bBoards)) / float64(informative)
+		if need := requiredPairs(rate); need > informative {
+			fmt.Printf("POWER  at this split, about %d decided boards would be needed to separate them;\n"+
+				"       this run had %d.\n", need, informative)
 		}
 	}
 
@@ -171,6 +182,51 @@ func reportSlots(wins, games [rules.MaxSnakes]int) {
 		fmt.Printf("       a start square is worth a measurable amount here, which is why the\n" +
 			"       arms rotate through them rather than one always going first.\n")
 	}
+}
+
+// boardOutcomes folds the two games of each mirrored pair into one verdict for
+// that board.
+//
+// An arm takes the board only by winning it from both slots. Winning from one
+// and losing from the other says the slot decided it, and the pair is a split.
+func boardOutcomes(results []gameResult) (aBoards, bBoards, split int) {
+	type tally struct{ a, b int }
+	boards := make(map[int]*tally, len(results)/2)
+	order := make([]int, 0, len(results)/2)
+
+	for _, r := range results {
+		if r.err != nil {
+			continue
+		}
+		t, ok := boards[r.seed]
+		if !ok {
+			t = &tally{}
+			boards[r.seed] = t
+			order = append(order, r.seed)
+		}
+		switch r.outcome {
+		case armAWon:
+			t.a++
+		case armBWon:
+			t.b++
+		case draw:
+		}
+	}
+
+	// Walked in first-seen order rather than by ranging the map, so the counts
+	// never depend on Go's map iteration.
+	for _, seed := range order {
+		t := boards[seed]
+		switch {
+		case t.a == 2:
+			aBoards++
+		case t.b == 2:
+			bBoards++
+		default:
+			split++
+		}
+	}
+	return aBoards, bBoards, split
 }
 
 func verdict(p float64, arms [2]arm, aWins, bWins int) string {

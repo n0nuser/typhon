@@ -125,6 +125,9 @@ func run() error {
 	if *snakes < 2 || *snakes > rules.MaxSnakes {
 		return fmt.Errorf("-snakes %d: the board holds 2 to %d", *snakes, rules.MaxSnakes)
 	}
+	if *games%2 != 0 {
+		return fmt.Errorf("-n %d: games are played in mirrored pairs, so the count is even", *games)
+	}
 	field, err := parseNeutral(*neutral, a)
 	if err != nil {
 		return fmt.Errorf("neutral: %w", err)
@@ -159,7 +162,8 @@ func playAll(cfg runConfig, arms [2]arm, neutral arm, seedBase, games, snakes, p
 		go func() {
 			defer wg.Done()
 			for i := range jobs {
-				results[i] = playGame(cfg, arms, neutral, seedBase+i, seatFor(i, snakes))
+				g := gameFor(i, snakes)
+				results[i] = playGame(cfg, arms, neutral, seedBase+g.seed, g.seats)
 			}
 		}()
 	}
@@ -322,8 +326,8 @@ func printHeader(label string, games, seedBase int, cfg runConfig, arms [2]arm, 
 	if snakes > 2 {
 		field = fmt.Sprintf("%d snakes, ", snakes)
 	}
-	fmt.Printf("RUN    %s: %d games, %sseeds %d-%d, %s on %s (%dx%d), %d at a time\n",
-		label, games, field, seedBase, seedBase+games-1, cfg.gameType, cfg.mapName,
+	fmt.Printf("RUN    %s: %d games, %sseeds %d-%d played twice with the slots exchanged, %s on %s (%dx%d), %d at a time\n",
+		label, games, field, seedBase, seedBase+games/2-1, cfg.gameType, cfg.mapName,
 		cfg.width, cfg.height, parallel)
 	fmt.Printf("ARM A  %-10s %s\n", arms[0].name, describe(arms[0]))
 	fmt.Printf("ARM B  %-10s %s\n", arms[1].name, describe(arms[1]))

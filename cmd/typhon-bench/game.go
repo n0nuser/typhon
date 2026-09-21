@@ -73,31 +73,55 @@ type seating struct {
 	snakes int
 }
 
-// seatFor returns the seating for the game at index i in a run of `snakes`
-// snakes, cycling through every ordered pair of distinct slots so that each
-// contestant occupies each start square about equally often.
-//
-// For two snakes the cycle is exactly (A first, B first), which is the
-// alternation this harness has always used; every number in BENCHMARK.md was
-// measured under it and stays reproducible.
-func seatFor(i, snakes int) seating {
-	pairs := snakes * (snakes - 1)
-	arrangement := ((i % pairs) + pairs) % pairs
-	a := arrangement / (snakes - 1)
-	offset := arrangement % (snakes - 1)
+// pairing is one game of a mirrored pair: which board to play, and who sits
+// where.
+type pairing struct {
+	// seed is the offset from the run's seed base. Both games of a pair share
+	// it, and therefore share the board.
+	seed  int
+	seats seating
+}
 
-	b := 0
-	for slot := range snakes {
-		if slot == a {
-			continue
+// slotPairs lists the unordered pairs of slots the two contestants can occupy,
+// in a fixed order so a run is reproducible.
+func slotPairs(snakes int) [][2]int {
+	out := make([][2]int, 0, snakes*(snakes-1)/2)
+	for i := range snakes {
+		for j := i + 1; j < snakes; j++ {
+			out = append(out, [2]int{i, j})
 		}
-		if offset == 0 {
-			b = slot
-			break
-		}
-		offset--
 	}
-	return seating{a: a, b: b, snakes: snakes}
+	return out
+}
+
+// gameFor returns what the game at index i plays: the seed offset, and the
+// seating.
+//
+// Games come in **mirrored pairs**. Both games of a pair use the same seed, and
+// therefore the same board, food and hazards; the second exchanges the two
+// contestants' slots. Whatever that board is worth to the square it favours is
+// then paid to both arms exactly once, and cancels.
+//
+// The harness previously alternated seating by game index while the seed also
+// advanced by game index, which aliased the two: arm A held slot 0 on every
+// even seed. Any systematic difference between even and odd boards landed
+// entirely on one arm, and one did. Two *identical* configurations came back
+// 120-80 with p=0.0058, and shifting the seed base by one mirrored it exactly
+// to 80-120 - which is the signature of a bias attached to the board rather
+// than to the bot, being handed to whichever arm the parity selected.
+//
+// This costs distinct boards: `-n 200` is now 100 boards played twice rather
+// than 200 played once. It buys a comparison where the board cannot take sides.
+func gameFor(i, snakes int) pairing {
+	pair := i / 2
+	combos := slotPairs(snakes)
+	c := combos[pair%len(combos)]
+
+	seats := seating{a: c[0], b: c[1], snakes: snakes}
+	if i%2 == 1 {
+		seats.a, seats.b = c[1], c[0]
+	}
+	return pairing{seed: pair, seats: seats}
 }
 
 // gameResult is one played game.

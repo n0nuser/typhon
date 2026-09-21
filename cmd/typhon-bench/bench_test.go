@@ -41,10 +41,10 @@ func TestAGameIsReproducibleFromItsSeed(t *testing.T) {
 		seed  int
 		seats seating
 	}{
-		{seed: 9000, seats: seatFor(0, 2)},
-		{seed: 9001, seats: seatFor(1, 2)},
-		{seed: 9000, seats: seatFor(0, 4)},
-		{seed: 9001, seats: seatFor(5, 4)},
+		{seed: 9000, seats: gameFor(0, 2).seats},
+		{seed: 9001, seats: gameFor(1, 2).seats},
+		{seed: 9000, seats: gameFor(0, 4).seats},
+		{seed: 9001, seats: gameFor(5, 4).seats},
 	}
 
 	for _, tc := range cases {
@@ -106,7 +106,7 @@ func TestSlotAssignmentIsHonoured(t *testing.T) {
 	b, _ := parseArm("oneply", "nodes=600,depth=1", 2)
 	arms := [2]arm{a, b}
 
-	res := playGame(cfg, arms, field(t), 9000, seatFor(0, 2))
+	res := playGame(cfg, arms, field(t), 9000, gameFor(0, 2).seats)
 	if res.err != nil {
 		t.Fatal(res.err)
 	}
@@ -120,7 +120,7 @@ func TestSlotAssignmentIsHonoured(t *testing.T) {
 		t.Errorf("arm B reached depth %d despite depth=1", res.perArm[1].maxDepth)
 	}
 
-	swapped := playGame(cfg, arms, field(t), 9000, seatFor(1, 2))
+	swapped := playGame(cfg, arms, field(t), 9000, gameFor(1, 2).seats)
 	if swapped.err != nil {
 		t.Fatal(swapped.err)
 	}
@@ -213,54 +213,112 @@ func indexOf(haystack, needle string) int {
 	return -1
 }
 
-// Rotation has to give every contestant every start square the same number of
-// times. If it does not, the slot's own contribution lands on whichever arm sat
-// in the better square more often, and no sample size sees through that.
-func TestRotationGivesEveryArmEverySquare(t *testing.T) {
+// Every board must be played twice with the contestants exchanged. That is the
+// whole mechanism: a board worth something to one square pays it to both arms
+// once, so it cannot take sides.
+func TestEveryBoardIsPlayedBothWaysRound(t *testing.T) {
 	t.Parallel()
 
 	for _, snakes := range []int{2, 3, 4} {
-		games := 12 * snakes * (snakes - 1)
-		var aIn, bIn []int
-		aIn, bIn = make([]int, snakes), make([]int, snakes)
+		games := 4 * len(slotPairs(snakes)) * 2
+		seen := map[int][]seating{}
 
 		for i := range games {
-			s := seatFor(i, snakes)
-			if s.a == s.b {
-				t.Fatalf("%d snakes, game %d: both arms seated in slot %d", snakes, i, s.a)
-			}
-			if s.snakes != snakes {
-				t.Fatalf("%d snakes, game %d: seating reports %d", snakes, i, s.snakes)
-			}
-			aIn[s.a]++
-			bIn[s.b]++
+			g := gameFor(i, snakes)
+			seen[g.seed] = append(seen[g.seed], g.seats)
 		}
 
-		want := games / snakes
-		for slot := range snakes {
-			if aIn[slot] != want || bIn[slot] != want {
-				t.Errorf("%d snakes over %d games: slot %d held arm A %d times and arm B %d, want %d each",
-					snakes, games, slot, aIn[slot], bIn[slot], want)
+		for seed, seats := range seen {
+			if len(seats) != 2 {
+				t.Fatalf("%d snakes: board %d was played %d times, want 2", snakes, seed, len(seats))
+			}
+			first, second := seats[0], seats[1]
+			if first.a != second.b || first.b != second.a {
+				t.Errorf("%d snakes, board %d: seats %v and %v are not an exchange",
+					snakes, seed, first, second)
+			}
+			if first.a == first.b {
+				t.Errorf("%d snakes, board %d: both arms seated in slot %d", snakes, seed, first.a)
 			}
 		}
 	}
 }
 
-// The duel rotation must be the alternation this harness has always used, or
-// every number in BENCHMARK.md stops being reproducible from its seed block.
-func TestTheDuelRotationIsUnchanged(t *testing.T) {
+// Arm assignment must not be a function of the board.
+//
+// This is the defect the mirroring exists to remove, and it is worth asserting
+// directly rather than only through the floor runs that caught it. Previously
+// arm A held slot 0 on every even seed, so any systematic difference between
+// even and odd boards was handed to one arm: two identical configurations came
+// back 120-80, p=0.0058, and shifting the seed base by one mirrored it exactly.
+//
+// The test that used to live here asserted the opposite - that the duel
+// alternation must never change, to keep old numbers reproducible. It was
+// protecting the bug.
+func TestSeatingIsNotAFunctionOfTheBoard(t *testing.T) {
 	t.Parallel()
 
-	for i := range 8 {
-		got := seatFor(i, 2)
-		wantA := 1
-		if i%2 == 0 {
-			wantA = 0
+	for _, snakes := range []int{2, 4} {
+		bySeed := map[int]map[int]int{}
+		for i := range 8 * len(slotPairs(snakes)) * 2 {
+			g := gameFor(i, snakes)
+			if bySeed[g.seed] == nil {
+				bySeed[g.seed] = map[int]int{}
+			}
+			bySeed[g.seed][g.seats.a]++
 		}
-		if got.a != wantA || got.b != 1-wantA {
-			t.Errorf("game %d: arm A in slot %d, arm B in slot %d; want A in %d",
-				i, got.a, got.b, wantA)
+		for seed, slots := range bySeed {
+			if len(slots) != 2 {
+				t.Errorf("%d snakes: on board %d arm A only ever sits in %v; the board picks the arm",
+					snakes, seed, slots)
+			}
 		}
+	}
+}
+
+// A board decided by the slot rather than the configuration carries no
+// information, and must be scored as a split rather than as evidence.
+func TestABoardIsWonOnlyFromBothSlots(t *testing.T) {
+	t.Parallel()
+
+	res := func(seed int, o outcome) gameResult { return gameResult{seed: seed, outcome: o} }
+
+	tests := []struct {
+		name                  string
+		games                 []gameResult
+		wantA, wantB, wantSpl int
+	}{
+		{
+			name:  "arm A wins from both slots",
+			games: []gameResult{res(1, armAWon), res(1, armAWon)},
+			wantA: 1,
+		},
+		{
+			name:  "arm B wins from both slots",
+			games: []gameResult{res(1, armBWon), res(1, armBWon)},
+			wantB: 1,
+		},
+		{
+			name:    "one each is the slot talking, not the arm",
+			games:   []gameResult{res(1, armAWon), res(1, armBWon)},
+			wantSpl: 1,
+		},
+		{
+			name:    "a draw cannot carry a board",
+			games:   []gameResult{res(1, armAWon), res(1, draw)},
+			wantSpl: 1,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			a, b, split := boardOutcomes(tc.games)
+			if a != tc.wantA || b != tc.wantB || split != tc.wantSpl {
+				t.Errorf("boardOutcomes = (a=%d b=%d split=%d), want (a=%d b=%d split=%d)",
+					a, b, split, tc.wantA, tc.wantB, tc.wantSpl)
+			}
+		})
 	}
 }
 
@@ -357,7 +415,7 @@ func TestAFourSnakeGameSeatsAFieldThatPlays(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	res := playGame(cfg, [2]arm{a, b}, neutral, 9000, seatFor(0, 4))
+	res := playGame(cfg, [2]arm{a, b}, neutral, 9000, gameFor(0, 4).seats)
 	if res.err != nil {
 		t.Fatal(res.err)
 	}

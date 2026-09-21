@@ -19,8 +19,13 @@ OUT="${2:-${TMPDIR:-/tmp}/typhon-bench}"
 # Phase A once died three runs in with an unbound variable.
 ROOT="${ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 
-# Phase A is the whole sweep at n=30: it shakes out bugs and shows which paths
-# fire. Phase B is the three arms that answer a question, at n=200.
+# Phase A is the whole sweep, small: it shakes out bugs and shows which paths
+# fire. Phase B is the arms that answer a question, at four hundred games.
+#
+# `-n` counts **games**, and games come in mirrored pairs: 400 games is 200
+# boards, each played twice with the contestants' slots exchanged. Every figure
+# in BENCHMARK.md before the mirroring was 200 distinct boards played once, so
+# the counts are not comparable across that line even where they look alike.
 #
 # Phase B is deliberately not the whole sweep. Eleven arm comparisons at two
 # hundred paired games each is most of a day, and a suite that takes most of a
@@ -28,8 +33,8 @@ ROOT="${ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 # eleven that do not; the rest stay in Phase A and are reported as what they
 # are - underpowered, and not findings.
 case "$PHASE" in
-    a) GAMES=30;  SEED=9000; ARMS=all ;;
-    b) GAMES=200; SEED=9100; ARMS=headline ;;
+    a) GAMES=40;  SEED=9000; ARMS=all ;;
+    b) GAMES=400; SEED=9100; ARMS=headline ;;
     *) echo "usage: $0 [a|b] [output-dir]" >&2; exit 2 ;;
 esac
 
