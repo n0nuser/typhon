@@ -163,10 +163,31 @@ files.
 
 **The `free` plan spins down** after 15 minutes without traffic and takes about
 a minute to wake. A Battlesnake that is asleep when a game starts returns
-nothing, the engine moves it `up`, and it usually dies. That is fine for a demo
-and wrong for a leaderboard. The two ways round it are to move to a paid
-instance, or to keep the service warm with an external pinger — a cron that
-hits `/` every few minutes. Neither is configured here.
+nothing, the engine moves it `up`, and it usually dies.
+
+The fix is narrower than it first looks, because **leaderboard games are not
+continuous**. Battlesnake runs them once a day: *"Once a day, at the same time
+every day, each Leaderboard will initiate a series of competitive games among
+Leaderboard participants."* So the service does not need to be awake all day —
+it needs to be awake for one window.
+
+That matters because Render grants **750 Free instance hours per workspace per
+month**, and a spun-down service consumes none of them. Staying awake 24/7 costs
+720 hours in a 30-day month and 744 in a 31-day one: it fits, with nothing left
+for any other free service, and exhausting the budget suspends *every* Free web
+service in the workspace until the next month. Warming a two-hour window instead
+costs about 60 hours a month.
+
+So: an external cron hitting `GET /` every 10 minutes, for a window around the
+daily batch. [cron-job.org](https://cron-job.org) is free and does this. A
+self-ping from inside the service does not work — it keeps the service from
+sleeping but cannot wake it, so a single redeploy or hiccup takes it down until
+something external arrives.
+
+The batch time is not documented and has to be observed: register, join a
+leaderboard, let a day pass, and read the timestamps in the game history.
+
+None of this is configured in the repo, because the window is account-specific.
 
 **The region is a measurement, not a preference.** Frankfurt was measured at
 44ms of engine-reported round trip. Every game logs `engine_rtt_mean_ms` taken

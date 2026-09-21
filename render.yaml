@@ -9,8 +9,12 @@
 #
 # Plan: `free` spins down after 15 minutes without traffic and takes about a
 # minute to wake. A Battlesnake that is asleep when a game starts returns
-# nothing, the engine moves it `up`, and it usually dies - so free is fine for
-# a demo and wrong for a leaderboard. See README for the two ways round that.
+# nothing, the engine moves it `up`, and it usually dies.
+#
+# Leaderboard games run once a day in a batch rather than continuously, so the
+# service needs to be awake for one window, not around the clock - which also
+# keeps it inside Render's 750 free instance hours a month, where staying up
+# 24/7 would consume essentially all of them. See README for the cron.
 services:
   - name: typhon
     type: web
