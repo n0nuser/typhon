@@ -21,6 +21,40 @@ const seedOverhead = 50 * time.Millisecond
 // not.
 const safetyMargin = 25 * time.Millisecond
 
+// budgetCeiling is the most of the engine's timeout the search may ever be
+// given, whatever the estimates say.
+//
+// The estimates cannot see the whole cost of a turn. Our clock starts on the
+// first line of the handler, so the TCP accept, the HTTP parse and the wait for
+// the Go scheduler to reach our goroutine are invisible to us and only surface
+// as `overhead` on the *following* turn. On a CPU-throttled instance that gap
+// is not small and it is not stable: one live game had it oscillating between
+// 48ms and 122ms, and the turn that died had budget 327ms, a measured 397ms of
+// thinking, and a round trip the engine recorded as the full 500ms - it lost
+// because the spike was bigger than the peak the estimate had decayed to.
+//
+// A ceiling bounds that exposure without having to predict it. The estimates
+// still shrink the budget when they can see a reason to; this stops the budget
+// growing back to where a single spike is fatal.
+//
+// 0.60 of a 500ms turn is 300ms. Measured live at 330ms the bot did about
+// 75,000 nodes and reached depth 8; iterative deepening costs roughly 4x per
+// ply, so the ceiling gives up well under half a ply. A late answer is not a
+// worse move, it is no move: the engine plays `getDefaultMove`, which continues
+// in the direction the neck implies, straight into whatever is there.
+const budgetCeiling = 0.60
+
+// overheadDecay and overshootDecay set how fast a peak is forgotten, as the
+// reciprocal of the weight given to each new sample.
+//
+// Overhead decays far more slowly than overshoot because its spikes recur. In
+// the game that died they arrived every twenty turns or so, and a peak forgotten
+// in thirty is a peak that is never holding when it is needed.
+const (
+	overheadDecay  = 64
+	overshootDecay = 16
+)
+
 // seedOvershoot is the first turn's guess at what a turn costs after the
 // search has already stopped.
 //
@@ -53,7 +87,9 @@ type game struct {
 	// millisecond and the omission is invisible; on Render's 0.1-CPU free tier
 	// it is tens of milliseconds and every turn is late by about that much.
 	overshoot time.Duration
-	lastSeen  time.Time
+	// ceiling is the fraction of the timeout this game may spend searching.
+	ceiling  float64
+	lastSeen time.Time
 
 	turns     int
 	depthSum  int
@@ -97,13 +133,13 @@ func (g *game) noteTurn(engineLatency, thought, budget time.Duration) {
 	if over < 0 {
 		over = 0
 	}
-	g.overshoot = peakHold(g.overshoot, over)
+	g.overshoot = peakHold(g.overshoot, over, overshootDecay)
 
 	overhead := engineLatency - thought
 	if overhead < 0 {
 		overhead = 0
 	}
-	g.overhead = peakHold(g.overhead, overhead)
+	g.overhead = peakHold(g.overhead, overhead, overheadDecay)
 }
 
 // peakHold folds one sample into a running estimate that rises at once and
@@ -121,11 +157,12 @@ func (g *game) noteTurn(engineLatency, thought, budget time.Duration) {
 // What a deadline needs is an upper bound. Rising immediately means one late
 // turn is enough to learn from; decaying slowly means a single outlier does not
 // pin the budget for the rest of the game.
-func peakHold(current, sample time.Duration) time.Duration {
+func peakHold(current, sample time.Duration, decay int) time.Duration {
 	if sample > current {
 		return sample
 	}
-	return (current*15 + sample) / 16
+	n := time.Duration(decay)
+	return (current*(n-1) + sample) / n
 }
 
 // budget returns how long the search may run this turn.
@@ -142,6 +179,13 @@ func (g *game) budget(timeout time.Duration) time.Duration {
 		overshoot = seedOvershoot
 	}
 	budget := timeout - overhead - overshoot - safetyMargin
+	frac := g.ceiling
+	if frac <= 0 || frac > 1 {
+		frac = budgetCeiling
+	}
+	if ceiling := time.Duration(float64(timeout) * frac); budget > ceiling {
+		budget = ceiling
+	}
 	if budget < time.Millisecond {
 		// Something is badly wrong with the estimate, but a turn still has to
 		// be answered, and the held fallback answers it.
@@ -156,14 +200,18 @@ func (g *game) budget(timeout time.Duration) time.Duration {
 // send one, which the engine does whenever a match is abandoned. An unbounded
 // map keyed by game id is a leak with a timer on it.
 type store struct {
-	mu    sync.Mutex
-	games map[string]*game
-	ttl   time.Duration
-	now   func() time.Time
+	mu      sync.Mutex
+	games   map[string]*game
+	ttl     time.Duration
+	ceiling float64
+	now     func() time.Time
 }
 
-func newStore(ttl time.Duration) *store {
-	return &store{games: make(map[string]*game), ttl: ttl, now: time.Now}
+func newStore(ttl time.Duration, ceiling float64) *store {
+	if ceiling <= 0 || ceiling > 1 {
+		ceiling = budgetCeiling
+	}
+	return &store{games: make(map[string]*game), ttl: ttl, ceiling: ceiling, now: time.Now}
 }
 
 // get returns the game for a key, creating it if this is the first sight of it.
@@ -174,7 +222,7 @@ func (s *store) get(key string) *game {
 	now := s.now()
 	g, ok := s.games[key]
 	if !ok {
-		g = &game{}
+		g = &game{ceiling: s.ceiling}
 		s.games[key] = g
 	}
 	g.lastSeen = now

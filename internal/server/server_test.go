@@ -68,7 +68,7 @@ func TestMoveIsAlwaysLegalAndOnTime(t *testing.T) {
 			t.Parallel()
 
 			h := New(api.InfoResponse{APIVersion: "1"}, search.DefaultConfig(),
-				time.Minute, slog.New(slog.DiscardHandler))
+				Limits{TTL: time.Minute}, slog.New(slog.DiscardHandler))
 
 			start := time.Now()
 			move := postMove(t, h, tc.req())
@@ -96,7 +96,7 @@ func TestAMoveForASnakeThatIsGoneStillAnswers(t *testing.T) {
 	t.Parallel()
 
 	h := New(api.InfoResponse{APIVersion: "1"}, search.DefaultConfig(),
-		time.Minute, slog.New(slog.DiscardHandler))
+		Limits{TTL: time.Minute}, slog.New(slog.DiscardHandler))
 
 	req := request("standard", 500, 40, wire("them", 90, coords(5, 5, 5, 4, 5, 3)))
 	req.You = wire("me", 0, coords(1, 1, 1, 2, 1, 3))
@@ -113,7 +113,7 @@ func TestGamesAreKeyedByGameAndSnake(t *testing.T) {
 	t.Parallel()
 
 	h := New(api.InfoResponse{APIVersion: "1"}, search.DefaultConfig(),
-		time.Minute, slog.New(slog.DiscardHandler))
+		Limits{TTL: time.Minute}, slog.New(slog.DiscardHandler))
 
 	base := request("standard", 500, 1,
 		wire("me", 90, coords(1, 1, 1, 2, 1, 3)),
@@ -144,7 +144,7 @@ func TestAbandonedGamesAreSweptOut(t *testing.T) {
 	t.Parallel()
 
 	now := time.Now()
-	s := newStore(time.Minute)
+	s := newStore(time.Minute, 0)
 	s.now = func() time.Time { return now }
 
 	s.get("abandoned/snake")
@@ -171,7 +171,10 @@ func TestTheBudgetDoesNotChargeOurOwnThinkTimeTwice(t *testing.T) {
 		thought   = 400 * time.Millisecond
 	)
 
-	g := &game{}
+	// Ceiling lifted out of the way: this asserts that the *estimate* does not
+	// eat our own compute, which is a separate question from how much of the
+	// timeout policy allows the search to spend.
+	g := &game{ceiling: 1}
 	for range 20 {
 		g.noteTurn(roundTrip, thought, thought)
 	}
@@ -210,7 +213,7 @@ func TestInfoWebhook(t *testing.T) {
 		APIVersion: "1", Author: "n0nuser",
 		Color: "#8A0303", Head: "lantern-fish", Tail: "cosmic-horror", Version: "0.1.0",
 	}
-	h := New(want, search.DefaultConfig(), time.Minute, slog.New(slog.DiscardHandler))
+	h := New(want, search.DefaultConfig(), Limits{TTL: time.Minute}, slog.New(slog.DiscardHandler))
 
 	rec := httptest.NewRecorder()
 	h.Routes().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
@@ -452,5 +455,67 @@ func TestATrivialTurnDoesNotPoisonTheEstimate(t *testing.T) {
 
 	if got := g.budget(timeout); got != settled {
 		t.Errorf("a turn that never searched moved the budget from %v to %v", settled, got)
+	}
+}
+
+// The budget never exceeds its share of the timeout, however good the
+// estimates look.
+//
+// This is the rule that the estimates cannot supply, because they cannot see
+// the whole turn: our clock starts on the first line of the handler, so the
+// accept, the parse and the wait for the scheduler are charged to the *next*
+// turn's overhead. A live game died with budget 327ms, 397ms measured, and a
+// round trip the engine recorded as the full 500ms.
+func TestTheBudgetNeverExceedsItsShareOfTheTimeout(t *testing.T) {
+	t.Parallel()
+
+	const timeout = 500 * time.Millisecond
+
+	for _, tc := range []struct {
+		name    string
+		ceiling float64
+		want    time.Duration
+	}{
+		{name: "default", ceiling: 0, want: time.Duration(float64(timeout) * budgetCeiling)},
+		{name: "half", ceiling: 0.5, want: 250 * time.Millisecond},
+		{name: "nine tenths", ceiling: 0.9, want: 450 * time.Millisecond},
+		{name: "out of range falls back", ceiling: 4, want: time.Duration(float64(timeout) * budgetCeiling)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			// A game whose measured costs are zero, so nothing but the ceiling
+			// can bound the budget.
+			g := &game{ceiling: tc.ceiling, overhead: time.Nanosecond, overshoot: time.Nanosecond}
+			if got := g.budget(timeout); got != tc.want {
+				t.Errorf("budget = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+// An overhead spike has to still be held when the next one arrives. In the game
+// that died they came about every twenty turns, and the previous decay had
+// forgotten the peak by then.
+func TestAnOverheadPeakOutlastsTheGapBetweenSpikes(t *testing.T) {
+	t.Parallel()
+
+	const (
+		timeout = 500 * time.Millisecond
+		spike   = 122 * time.Millisecond
+		calm    = 48 * time.Millisecond
+	)
+
+	g := &game{ceiling: budgetCeiling}
+	budget := g.budget(timeout)
+	g.noteTurn(budget+spike, budget, budget)
+
+	for range 20 {
+		budget = g.budget(timeout)
+		g.noteTurn(budget+calm, budget, budget)
+	}
+
+	if g.overhead < 100*time.Millisecond {
+		t.Errorf("overhead decayed to %v twenty turns after a %v spike; the next spike will be unguarded",
+			g.overhead, spike)
 	}
 }

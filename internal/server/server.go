@@ -16,27 +16,42 @@ import (
 // defaultTimeout is used when a request omits the game timeout.
 const defaultTimeout = 500 * time.Millisecond
 
-// Handler serves the Battlesnake webhooks.
-type Handler struct {
-	info  api.InfoResponse
-	cfg   search.Config
-	store *store
-	log   *slog.Logger
-	now   func() time.Time
+// Limits are the deadline knobs, kept together because they are read from the
+// environment and are the ones worth changing on a live instance without a
+// rebuild.
+type Limits struct {
+	// TTL drops a game from memory after this long without contact, for
+	// matches the engine abandons without sending /end.
+	TTL time.Duration
+	// Ceiling is the most of the engine's timeout the search may be given,
+	// whatever the measured estimates say. Zero takes budgetCeiling.
+	Ceiling float64
+	// MaxDepth stops the iterative deepening at this ply. Zero is no cap.
+	MaxDepth int
 }
 
-// New builds a Handler. Games are dropped from memory after ttl without
-// contact, for matches the engine abandons without sending /end.
-func New(info api.InfoResponse, cfg search.Config, ttl time.Duration, log *slog.Logger) *Handler {
+// Handler serves the Battlesnake webhooks.
+type Handler struct {
+	info   api.InfoResponse
+	cfg    search.Config
+	limits Limits
+	store  *store
+	log    *slog.Logger
+	now    func() time.Time
+}
+
+// New builds a Handler.
+func New(info api.InfoResponse, cfg search.Config, limits Limits, log *slog.Logger) *Handler {
 	if log == nil {
 		log = slog.Default()
 	}
 	return &Handler{
-		info:  info,
-		cfg:   cfg,
-		store: newStore(ttl),
-		log:   log,
-		now:   time.Now,
+		info:   info,
+		cfg:    cfg,
+		limits: limits,
+		store:  newStore(limits.TTL, limits.Ceiling),
+		log:    log,
+		now:    time.Now,
 	}
 }
 
@@ -157,7 +172,10 @@ func (h *Handler) decide(req api.GameRequest, g *game, start time.Time, budget t
 
 	// The deadline runs from the top of the handler, so the decode is spent out
 	// of the same allowance as the search rather than on top of it.
-	res := g.searcher.Search(state, me, search.Budget{Deadline: start.Add(budget)})
+	res := g.searcher.Search(state, me, search.Budget{
+		Deadline: start.Add(budget),
+		MaxDepth: h.limits.MaxDepth,
+	})
 	return res.Move, res
 }
 

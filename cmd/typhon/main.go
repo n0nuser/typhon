@@ -69,7 +69,12 @@ func run() error {
 	cfg.TableBits = uint(envInt("TYPHON_TABLE_BITS", int(cfg.TableBits)))
 	cfg.UseTable = !envBool("TYPHON_NO_TABLE", false)
 
-	handler := server.New(info, cfg, gameTTL, log)
+	limits := server.Limits{
+		TTL:      gameTTL,
+		Ceiling:  envFloat("TYPHON_BUDGET_CEILING", 0),
+		MaxDepth: envInt("TYPHON_MAX_DEPTH", 0),
+	}
+	handler := server.New(info, cfg, limits, log)
 
 	srv := &http.Server{
 		Addr:    ":" + env("PORT", "8080"),
@@ -89,7 +94,8 @@ func run() error {
 		log.Info("listening",
 			"addr", srv.Addr, "opponents", cfg.Opponents,
 			"table", cfg.UseTable, "table_bits", cfg.TableBits,
-			"color", info.Color, "head", info.Head, "tail", info.Tail)
+			"color", info.Color, "head", info.Head, "tail", info.Tail,
+			"budget_ceiling", limits.Ceiling, "max_depth", limits.MaxDepth)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			errs <- err
 			return
@@ -130,6 +136,13 @@ func env(key, fallback string) string {
 
 func envInt(key string, fallback int) int {
 	if v, err := strconv.Atoi(os.Getenv(key)); err == nil {
+		return v
+	}
+	return fallback
+}
+
+func envFloat(key string, fallback float64) float64 {
+	if v, err := strconv.ParseFloat(os.Getenv(key), 64); err == nil {
 		return v
 	}
 	return fallback

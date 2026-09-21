@@ -89,6 +89,17 @@ three rulesets and does not clearly do so in constrictor (18-11-1, p=0.27, and
 n=30 at that). There may simply be less for lookahead to find when the board
 fills regardless.
 
+**The deadline is bounded by policy, not only by estimate.** The budget
+subtracts a measured overhead and overshoot, and is then capped at
+`TYPHON_BUDGET_CEILING` of the engine's timeout. The cap exists because the
+estimates cannot see the whole turn: our clock starts on the first line of the
+handler, so the accept, the parse and the wait for the Go scheduler are
+invisible and only surface as overhead on the *next* turn. A live game died with
+a 327ms budget, 397ms measured, and a round trip the engine recorded as the full
+500ms — a spike larger than the peak the estimate had decayed to. A late answer
+is not a worse move but no move: the engine plays `getDefaultMove`, continuing
+in the direction the neck implies, into whatever is there.
+
 **The deadline was proven on one laptop and failed in production.** 2,018 turns
 against the real engine with zero late turns under synthetic load — and then
 every move in the first live game on Render's 0.1-CPU free tier took 501-536ms
@@ -119,6 +130,8 @@ service needs none of them set.
 | `TYPHON_TAIL` | `cosmic-horror` | tail sprite |
 | `TYPHON_VERSION` | `0.1.0` | reported in `/` |
 | `TYPHON_OPPONENTS` | `2` | rivals modelled properly; the rest get a greedy move |
+| `TYPHON_BUDGET_CEILING` | `0.60` | most of the engine's timeout the search may ever be given |
+| `TYPHON_MAX_DEPTH` | unset | stop iterative deepening at this ply; unset is no cap |
 | `TYPHON_TABLE_BITS` | `20` | transposition table sized `1<<N` entries |
 | `TYPHON_NO_TABLE` | unset | set to disable the transposition table |
 
