@@ -79,6 +79,20 @@ func (g *game) noteTurn(engineLatency, thought, budget time.Duration) {
 		return
 	}
 
+	// A turn that did not spend its budget teaches nothing about where the time
+	// went, and under a peak-hold estimate it does active harm.
+	//
+	// The search runs to its deadline on every real turn, so `thought` under
+	// half the budget means the turn was trivial - the game was already over,
+	// or we were the last snake asked to move. Those return in microseconds,
+	// which makes `engineLatency - thought` charge the entire round trip as
+	// overhead: one live game logged 472ms that way. A mean would have shrugged
+	// it off; a peak holds it, and one such sample drops the budget from 395ms
+	// to the 1ms floor for the thirty turns it takes to decay.
+	if thought*2 < budget {
+		return
+	}
+
 	over := thought - budget
 	if over < 0 {
 		over = 0

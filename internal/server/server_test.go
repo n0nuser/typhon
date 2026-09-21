@@ -424,3 +424,33 @@ func TestTheBudgetSurvivesABimodalPostSearchCost(t *testing.T) {
 		t.Errorf("budget collapsed to %v; the estimate is too conservative to play with", got)
 	}
 }
+
+// A trivial turn must not teach the estimate anything.
+//
+// When the game is already decided the search returns in microseconds, so
+// `latency - thought` charges the whole round trip as overhead. One live game
+// logged 472ms of "overhead" that way. Under a peak-hold estimate that sample
+// would stick and crush the budget for the rest of the game.
+func TestATrivialTurnDoesNotPoisonTheEstimate(t *testing.T) {
+	t.Parallel()
+
+	const timeout = 500 * time.Millisecond
+
+	g := &game{}
+	budget := g.budget(timeout)
+
+	// Twenty ordinary turns to establish a sane estimate.
+	for range 20 {
+		g.noteTurn(budget+60*time.Millisecond+20*time.Millisecond, budget+60*time.Millisecond, budget)
+		budget = g.budget(timeout)
+	}
+	settled := g.budget(timeout)
+
+	// Now the game ends: the search returns immediately and the engine reports
+	// the full round trip.
+	g.noteTurn(472*time.Millisecond, 95*time.Microsecond, budget)
+
+	if got := g.budget(timeout); got != settled {
+		t.Errorf("a turn that never searched moved the budget from %v to %v", settled, got)
+	}
+}
