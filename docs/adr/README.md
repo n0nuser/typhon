@@ -5,7 +5,8 @@ reasonably have chosen otherwise. Each states the alternative it rejected and
 what would make it wrong, because a decision record whose only content is the
 option taken is a description, not a record.
 
-Status is `accepted` unless something has since undermined it.
+Status is `accepted` unless something has since undermined it. A record
+written before the thing it describes exists is `proposed`.
 
 | # | Decision | Status |
 | --- | --- | --- |
@@ -19,3 +20,4 @@ Status is `accepted` unless something has since undermined it.
 | [0008](0008-safety-is-never-delegated.md) | Compute the safe move first and never delegate safety | accepted |
 | [0009](0009-four-rulesets-and-a-loud-warning.md) | Implement four rulesets; play the rest loudly as standard | accepted |
 | [0010](0010-state-is-single-goroutine.md) | A game state belongs to one goroutine | accepted |
+| [0011](0011-four-snake-arms-one-contestant-per-side.md) | Four-snake arms run one contestant per side, against neutrals | accepted |

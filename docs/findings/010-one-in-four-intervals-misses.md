@@ -48,3 +48,15 @@ can disagree with the reasoning rather than having to discover the data.
 If the effect is real, a fifth run at those seeds would show it again. That run
 has not been done, and this file does not claim to have ruled it out - only that
 one row in four is not evidence.
+
+## Postscript: the fifth run
+
+The opponent-confinement arm was later run at n=200 on the same seeds. Its slot
+split is **103-97, 51.5%, [44.6%, 58.3%]** - the opposite direction, and an
+interval containing 50%. Pooled across all five runs the slot is **493-507,
+49.3%, [46.2%, 52.4%]**.
+
+So the fifth run did not show the effect again, which is what this file said
+would settle it. The tail-reachability row stays in the table as the one that
+missed; five independent 95% intervals miss at least once about 23% of the time,
+so the arithmetic reads the same way with one more test as it did with four.

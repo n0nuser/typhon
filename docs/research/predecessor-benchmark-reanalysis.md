@@ -19,8 +19,8 @@ not 50%"*, and named as the likely explanation for the project's noise.
 of **[42.3%, 68.4%]**. That interval contains 50%. Sixty games cannot detect a
 six-point effect, and this run did not detect one — it was read as having done so.
 
-**Measured here:** 800 decisive games across four n=200 runs with the arms
-alternating slots give **48.8%, [45.3%, 52.2%]** — an interval that excludes
+**Measured here:** 1,000 decisive games across five n=200 runs with the arms
+alternating slots give **49.3%, [46.2%, 52.4%]** — an interval that excludes
 55.8%.
 
 See [finding 003](../findings/003-the-floor-that-was-never-there.md). The control

@@ -11,8 +11,9 @@ we hoped. Every number here came from a run; nothing is projected.
 | ...in every ruleset? | **No - constrictor is unresolved** | royale 29-1 and wrapped 28-2; constrictor 18-11-1, p=0.27 |
 | Is any of it better than a coin? | **Yes, 200-0** | n=200 paired, p<0.0001 |
 | What is the floor? | **51.0%**, [44.1%, 57.8%] | n=200, two identical bots, slots alternating |
-| Is there a start-position bias? | **No: 51.2%**, [47.2%, 55.1%] | 600 games; excludes the predecessor's 55.8% |
+| Is there a start-position bias? | **No: 49.3%**, [46.2%, 52.4%] | 1,000 games; excludes the predecessor's 55.8% |
 | Does it fit a real turn budget? | **Yes** | 0 late turns in 2,018 against the live engine, on a loaded machine |
+| Is modelling two rivals right with four snakes? | **Yes, 123-71** | n=200 four-snake paired, p=0.0003, [56.4%, 69.9%] |
 | Does Typhon beat `battlesnake-jev`? | **Not measured** | and why is stated rather than glossed |
 
 The one that is worth reading before the rest: the win column is *not* where the
@@ -279,8 +280,8 @@ every other comparison had been measured against a wrong baseline was itself
 never established. It was sixty games saying almost nothing, read as a finding.
 
 The honest version, at 200 games with the slots alternating, is that the slot is
-worth nothing anyone can measure. And because every Phase B run alternates slots,
-all three of them are evidence about the same question, so they pool:
+worth nothing anyone can measure. And because every n=200 run alternates slots,
+every one of them is evidence about the same question, so they pool:
 
 | Run | slot 0 | slot 1 | slot 0 share | 95% CI |
 | --- | --- | --- | --- | --- |
@@ -288,21 +289,22 @@ all three of them are evidence about the same question, so they pool:
 | random control | 100 | 100 | 50.0% | [43.1%, 56.9%] |
 | search pays | 105 | 95 | 52.5% | [45.6%, 59.3%] |
 | tail reachability | 83 | 117 | 41.5% | [34.9%, 48.4%] |
-| **pooled** | **390** | **410** | **48.8%** | **[45.3%, 52.2%]** |
+| opponent confinement | 103 | 97 | 51.5% | [44.6%, 58.3%] |
+| **pooled** | **493** | **507** | **49.3%** | **[46.2%, 52.4%]** |
 
-Eight hundred decisive games put the starting slot at **48.8%, [45.3%, 52.2%]**.
+A thousand decisive games put the starting slot at **49.3%, [46.2%, 52.4%]**.
 The interval contains 50% comfortably and **excludes 55.8%** - the figure the
 predecessor recorded as the floor. Whatever was making its measurements noisy, it
 was not the starting square.
 
 **One row in that table does exclude 50%**, and it is worth not skipping past.
 The tail-reachability run split 83-117, an interval of [34.9%, 48.4%]. Taken
-alone that reads as a real slot effect. It is four tests, though, and one of four
-independent 95% intervals missing its target about eighteen percent of the time
-is arithmetic, not a finding - and it is the run whose own arm comparison was
-also null. Quoting it as evidence of slot bias while ignoring the other three
-would be the same error this file was written to avoid, committed in the
-opposite direction.
+alone that reads as a real slot effect. It is five tests, though, and at least
+one of five independent 95% intervals missing its target about twenty-three
+percent of the time is arithmetic, not a finding - and it is the run whose own
+arm comparison was also null. Quoting it as evidence of slot bias while ignoring
+the other four would be the same error this file was written to avoid, committed
+in the opposite direction.
 
 The other number worth quoting from that run is the harness's own power note:
 **about 9,604 decisive games would be needed** to separate two configurations
@@ -407,19 +409,27 @@ skipped when it measured a feature whose threshold was never crossed.
 | Voronoi control | 16 | 14 | 0.855 | not separated |
 | tail reachability | 19 | 11 | 0.201 | not separated |
 | opponent confinement | 11 | **19** | 0.201 | not separated, and the sign is wrong |
-| model 2 opponents vs 1 | 14 | 16 | 0.855 | not separated |
+| model 2 opponents vs 1 | 14 | 16 | 0.855 | **not a measurement** - see below |
 
-**None of the four separates**, which at thirty games is the only honest
-reading available. The floor run's power note puts the scale in perspective: two
+**Three of the four do not separate**, which at thirty games is the only honest
+reading available. The fourth did not compare anything at all; that row is
+dissected below. The floor run's power note puts the scale in perspective: two
 configurations splitting 98-102 would need about 9,604 decisive games.
 
-Two of these are worth saying more about, precisely because they are the kind of
-row that gets over-read.
+Three of these are worth saying more about, precisely because they are the kind
+of row that gets over-read.
 
 **Opponent confinement points the wrong way.** Switching it *off* won 19-11.
 That is not significant and thirty games could not make it so, but "does nothing"
 and "costs games" are different problems and the direction is at least a reason
-to look rather than to assume. It carries weight 6 in `eval.Default()`.
+to look rather than to assume. It carries weight 6 in `eval.Default()`. It was
+re-run at n=200; see below.
+
+**The `opponents` row compared a configuration with itself.** `chooseActors`
+takes `min(cfg.Opponents, live rivals)`, and in a duel there is exactly one live
+rival, so `opponents=2` and `opponents=1` resolve to the same actor list on
+every node of every turn. The two arms are not similar configurations; they are
+the same configuration. That row is dissected in its own section below.
 
 **Tail reachability points the right way**, 19-11, at exactly the same p. It
 carries weight 40, the largest in the evaluation, so it is the one arm where an
@@ -476,6 +486,174 @@ forced - so there may simply be less for lookahead to find. That is a
 hypothesis, not a result: 18-11-1 at n=30 is not separated, and the honest
 statement is that this run does not know.
 
+## Opponent confinement at n=200
+
+The n=30 run gave 19-11 for switching the term *off*: the sign that says a
+weight may be paying to lose. Two hundred paired games on the same seeds as
+Phase B:
+
+```
+RESULT confine: with=99 without=101 draw=0 of 200 games in 11m21s
+SHARE  with took 49.5% of decisive games, 95% CI [42.6%, 56.4%]
+PAIRED McNemar on 200 discordant games: chi2=0.01 p=0.9436 -> not separated
+POWER  at this split, about 38415 decisive games would be needed to separate them;
+       this run had 200.
+SLOT   slot0 won 103, slot1 won 97 (slot0 51.5%, 95% CI [44.6%, 58.3%])
+PATHS  with     mean_depth=5.41 all_losing=112 deaths=101 mean_death_turn=364
+       without  mean_depth=5.42 all_losing=103 deaths=99  mean_death_turn=366
+```
+
+**99-101. Not separated, and 49.5% is as close to the floor as this harness
+gets.** The wrong sign was noise: 63% for switching it off became 49.5%, with an
+interval straddling 50% almost symmetrically, and the path counts show two arms
+dying on the same turn having reached the same kind of position.
+
+Unlike the `opponents` arm dissected below, **these two arms provably played
+different games**: 288,237,073 nodes against 288,330,482, and 112 all-losing
+positions against 103. The weight changed the tree that was searched. It did not
+change who won.
+
+So the term is **not shown to hurt**, which is the claim the n=30 row put in
+doubt, and it is also not shown to help. It stays, on the same footing as tail
+reachability: a documented guess that two hundred games could not separate from
+its own absence.
+
+This is the second time the n=30 sweep produced a 19-11 that evaporated, and the
+two pointed in opposite directions. Whatever thirty games is good for, it is not
+the sign of an effect.
+
+## The `opponents` arm did not compare anything
+
+The row above reads `14-16, p=0.855, not separated`. That verdict is wrong, and
+the way it is wrong is the failure this project was started over.
+
+`chooseActors` (`internal/search/search.go`) ranks the live rivals by board
+distance and searches the nearest `min(cfg.Opponents, live rivals)` of them. In a
+two-snake game there is one live rival for the whole game, so the minimum is 1
+whichever way the flag is set. Both arms searched one opponent, on every node of
+every turn.
+
+Re-running the arm and the floor on the same seed block makes it concrete - these
+are the two runs' path counters, the floor's first:
+
+```
+floor      alpha  turns=12206 mean_depth=5.47 nodes=48254201 aborted=11947 all_losing=16 deaths=16 mean_death_turn=401
+           beta   turns=12208 mean_depth=5.45 nodes=48213457 aborted=11931 all_losing=14 deaths=14 mean_death_turn=412
+opponents  two    turns=12206 mean_depth=5.47 nodes=48254201 aborted=11947 all_losing=16 deaths=16 mean_death_turn=401
+           one    turns=12208 mean_depth=5.45 nodes=48213457 aborted=11931 all_losing=14 deaths=14 mean_death_turn=412
+```
+
+**Identical in every field, down to the node count.** The `opponents` run replayed
+the floor run's thirty games and relabelled the arms. Its 14-16 is the floor's
+slot bias, reported as though it were a comparison, and its p-value is the
+floor's p-value.
+
+The correct reading of the row is therefore **not "these are indistinguishable"
+but "nothing was distinguished"** - the same shape as
+[findings/001](docs/findings/001-a-passing-test-that-tested-nothing.md), where a
+differential test passed while exercising almost none of the rules. The rule in
+`docs/agents/rules.md` §5 that would have caught it is already written down:
+*verify a feature fires before benchmarking it.* The harness even prints the
+path counts that show it. Nobody compared them across runs.
+
+One incidental confirmation. The two re-runs were made back to back, the first
+alongside a 200-game suite saturating the machine and the second on a quiet one:
+they took **9m3s and 4m19s** and produced byte-identical counters, which also
+match the floor numbers recorded in the Phase A section above. That is
+[ADR 0004](docs/adr/0004-two-budget-modes.md)'s contention-immunity claim
+demonstrated rather than asserted.
+
+## Four snakes — the floor, and the first arm that separates
+
+Everything above this line is a duel. The `opponents` flag cannot vary in one
+(see the section above), so the question ADR 0005 left open needed a harness
+that seats four snakes: one per arm, and two default snakes filling the field.
+The design and what it rejects are [ADR 0011](docs/adr/0011-four-snake-arms-one-contestant-per-side.md).
+
+### The four-snake floor
+
+Four identical configurations, so that any slot effect shows up before anything
+is attributed to a flag. The 49.3% start-position result above is a **duel**
+number and says nothing about four start squares, which is why this run comes
+first:
+
+```
+RESULT floor-4p: alpha=101 beta=96 draw=3 of 200 games in 23m49s
+SHARE  alpha took 51.3% of decisive games, 95% CI [44.3%, 58.2%]
+PAIRED McNemar on 197 discordant games: chi2=0.08 p=0.7757 -> not separated
+SLOT   slot0 won 49 of 197 decisive, contested 101 (24.9%, 95% CI [19.4%, 31.4%])
+SLOT   slot1 won 45 of 197 decisive, contested 101 (22.8%, 95% CI [17.5%, 29.2%])
+SLOT   slot2 won 53 of 197 decisive, contested 100 (26.9%, 95% CI [21.2%, 33.5%])
+SLOT   slot3 won 50 of 197 decisive, contested 98 (25.4%, 95% CI [19.8%, 31.9%])
+PATHS  alpha  turns=54455 mean_depth=3.98 nodes=215615175 all_losing=134 deaths=153 mean_death_turn=237
+       beta   turns=49475 mean_depth=3.81 nodes=195955181 all_losing=106 deaths=149 mean_death_turn=195
+       field  turns=106113 mean_depth=3.89 nodes=419959549 all_losing=276 deaths=298 mean_death_turn=218
+```
+
+The `contested` column is on the line because the rotation is only exactly
+balanced when the game count divides by `snakes*(snakes-1)`. At 200 games and
+four snakes it does not: one arm sits in slot 0 fifty-one times and in slot 3
+forty-eight, so those squares are contested 101 and 98 times. Small, and
+disclosed rather than hidden.
+
+This run was made twice, on two builds of the harness and under very different
+machine load - **23m49s and 32m16s, byte-identical counters.** That is
+[ADR 0004](docs/adr/0004-two-budget-modes.md)'s node budget doing the job it
+exists for, and it is why eight games can run at once without distorting
+anything.
+
+**No start square is worth anything measurable.** Under the null each of the
+four takes about 25% of decisive games, and all four intervals contain it. The
+mirrored design ADR 0011 held in reserve is not needed.
+
+Two other numbers this run exists to produce. **Draws were 3 in 200**, not the
+double digits four-snake games threatened, so an arm run keeps essentially its
+full sample for the paired test. And the field played: 106,113 turns at mean
+depth 3.89, against the contestants' 3.98 and 3.81 — a field, not scenery, which
+is the check `findings/012` exists to insist on.
+
+### `opponents=2` against `opponents=1`
+
+Same seeds, same field, one flag:
+
+```
+RESULT opponents-4p: two=123 one=71 draw=6 of 200 games in 22m53s
+SHARE  two took 63.4% of decisive games, 95% CI [56.4%, 69.9%]
+PAIRED McNemar on 194 discordant games: chi2=13.41 p=0.0003 -> two is better
+SLOT   slot0 won 55 of 194 decisive, contested 101 (28.4%, 95% CI [22.5%, 35.1%])
+SLOT   slot1 won 45 of 194 decisive, contested 101 (23.2%, 95% CI [17.8%, 29.6%])
+SLOT   slot2 won 48 of 194 decisive, contested 100 (24.7%, 95% CI [19.2%, 31.3%])
+SLOT   slot3 won 46 of 194 decisive, contested 98 (23.7%, 95% CI [18.3%, 30.2%])
+PATHS  two    turns=53631 mean_depth=4.20 nodes=212280123 all_losing=107 deaths=140 mean_death_turn=219
+       one    turns=35309 mean_depth=5.28 nodes=139838536 all_losing=163 deaths=166 mean_death_turn=135
+       field  turns=110977 mean_depth=4.26 nodes=439173334 all_losing=235 deaths=294 mean_death_turn=228
+```
+
+**123-71, p=0.0003.** This is the first structural arm in this file that
+separates, and it is not near the line. Every slot interval contains 25%, so the
+result belongs to the flag rather than to a starting square.
+
+**It won while searching shallower**, which is the part worth sitting with.
+Modelling the second rival costs a ply and a bit — 4.20 against 5.28 — and still
+wins. The counter that explains it is the one from the headline result:
+`all_losing`, the turns where every legal move is contested. Per turn played,
+the deeper arm reaches those positions **2.3 times as often** (0.46% against
+0.20%), and dies around turn 135 against 219.
+
+Depth does not help a snake survive a lost position; it stops it reaching one.
+That was the finding from the one-ply comparison, and breadth turns out to buy
+the same thing. With three rivals on the board the snake about to take your
+square is often not the one you modelled, and depth against the wrong snake does
+not see it coming. Written up as
+[findings/013](docs/findings/013-breadth-buys-what-depth-buys.md).
+
+### What this does not settle
+
+`Opponents: 3` is untested — three rivals searched exhaustively is 256 joint
+moves a ply, and nothing here says whether that pays. The field was two default
+snakes, and a four-snake result is a comparison made inside a field. And it is
+measured at 4,000 nodes, about a twentieth of a deployed turn.
+
 ## Open questions
 
 Things this file does not answer, recorded so they are not mistaken for
@@ -485,13 +663,15 @@ settled.
 above: it needs the old binary answering over HTTP, and two hundred games at
 half a second a turn is upwards of eight hours.
 
-**Is modelling two opponents right in a four-snake game?** The calibration says
-400ms buys depth 7 against one rival and depth 3 against three, because
-modelling two opponents costs 64 joint moves a ply. The `opponents` arm below
-tests one against two, but only at n=30 and only in a duel, where it barely
-matters. The four-snake case is where it would.
+**Is `Opponents: 3` right with four snakes?** `Opponents: 2` now is - 123-71,
+p=0.0003, in the four-snake section above. Whether modelling the third rival
+also pays is not measured, and the cost is much steeper: three rivals searched
+exhaustively is 256 joint moves a ply against 64.
 
-**Are the weights any good?** Unknown, and deliberately so. They encode an
+**Are the weights any good?** Unknown, and deliberately so. Two of them have now
+been put to two hundred games each - tail reachability at 105-95 and opponent
+confinement at 99-101 - and neither separated from its own absence, which is
+evidence about the sample size needed rather than about the weights. They encode an
 ordering, not a measurement, and with 200 games needed per honest comparison
 there was budget for structural questions and none for searching weight space.
 Every weight in `eval.Default()` should be read as a guess that has not been

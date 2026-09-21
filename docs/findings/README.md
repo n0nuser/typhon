@@ -22,3 +22,5 @@ lesson is "that was a typo".
 | [009](009-a-quota-error-looks-exactly-like-a-hang.md) | A provider quota rejection is indistinguishable from the stall bug it was mistaken for |
 | [010](010-one-in-four-intervals-misses.md) | One of four slot measurements excluded 50%, and that is arithmetic, not a finding |
 | [011](011-constrictor-is-the-exception.md) | Search beats one ply in three rulesets out of four |
+| [012](012-an-arm-that-compared-a-flag-with-itself.md) | A benchmark arm ran to completion, reported a p-value, and compared nothing |
+| [013](013-breadth-buys-what-depth-buys.md) | Modelling a second rival wins while searching a ply shallower, by the same counter depth wins on |

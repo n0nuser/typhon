@@ -59,3 +59,16 @@ run. Measuring the control costs one run and removes a whole class of doubt;
 assuming it costs nothing until the assumption is wrong. See also
 [010](010-one-in-four-intervals-misses.md) for the row in that table that does
 exclude 50%, and why it is not a finding.
+
+## Postscript: a fifth run
+
+A fifth n=200 run - the opponent-confinement arm, on the same seeds - split
+**103-97**, 51.5%, [44.6%, 58.3%]. Pooled across all five:
+
+| | slot 0 | slot 1 | slot 0 share | 95% CI |
+| --- | --- | --- | --- | --- |
+| **pooled, five runs** | **493** | **507** | **49.3%** | **[46.2%, 52.4%]** |
+
+The conclusion is unchanged and the interval is tighter. `BENCHMARK.md` and the
+re-analysis in `docs/research/` quote the five-run figure; the four-run table
+above is left as it was written.
