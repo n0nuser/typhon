@@ -54,13 +54,13 @@ func run() error {
 	slog.SetDefault(log)
 
 	// Typhon is the serpent-headed monster that fought Zeus and was buried
-	// under Etna, so: a fanged head and a deep volcanic red.
+	// under Etna, so: a deep volcanic red, and something from further down.
 	info := api.InfoResponse{
 		APIVersion: "1",
 		Author:     env("TYPHON_AUTHOR", "n0nuser"),
 		Color:      env("TYPHON_COLOR", "#8A0303"),
-		Head:       env("TYPHON_HEAD", "fang"),
-		Tail:       env("TYPHON_TAIL", "sharp"),
+		Head:       env("TYPHON_HEAD", "lantern-fish"),
+		Tail:       env("TYPHON_TAIL", "cosmic-horror"),
 		Version:    env("TYPHON_VERSION", "0.1.0"),
 	}
 

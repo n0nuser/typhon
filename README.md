@@ -109,16 +109,17 @@ service needs none of them set.
 | `LOG_LEVEL` | `info` | `debug`, `info`, `warn`, `error` |
 | `TYPHON_AUTHOR` | `n0nuser` | shown on the snake's profile |
 | `TYPHON_COLOR` | `#8A0303` | deep volcanic red |
-| `TYPHON_HEAD` | `fang` | head sprite |
-| `TYPHON_TAIL` | `sharp` | tail sprite |
+| `TYPHON_HEAD` | `lantern-fish` | head sprite |
+| `TYPHON_TAIL` | `cosmic-horror` | tail sprite |
 | `TYPHON_VERSION` | `0.1.0` | reported in `/` |
 | `TYPHON_OPPONENTS` | `2` | rivals modelled properly; the rest get a greedy move |
 | `TYPHON_TABLE_BITS` | `20` | transposition table sized `1<<N` entries |
 | `TYPHON_NO_TABLE` | unset | set to disable the transposition table |
 
 The appearance is themed rather than arbitrary: Typhon is the serpent-headed
-monster buried under Etna, so a fanged head and volcanic red. Head and tail
-names come from the Battlesnake customization list.
+monster buried under Etna, so volcanic red, with a lantern-fish head and a
+cosmic-horror tail for the thing that lives down there. Head and tail names come
+from the Battlesnake customization list.
 
 ## Status
 

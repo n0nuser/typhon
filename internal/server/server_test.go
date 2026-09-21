@@ -206,7 +206,7 @@ func TestInfoWebhook(t *testing.T) {
 
 	want := api.InfoResponse{
 		APIVersion: "1", Author: "n0nuser",
-		Color: "#8A0303", Head: "fang", Tail: "sharp", Version: "0.1.0",
+		Color: "#8A0303", Head: "lantern-fish", Tail: "cosmic-horror", Version: "0.1.0",
 	}
 	h := New(want, search.DefaultConfig(), time.Minute, slog.New(slog.DiscardHandler))
 
