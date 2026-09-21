@@ -3,6 +3,14 @@
 What has actually been measured, including the results that did not go the way
 we hoped. Every number here came from a run; nothing is projected.
 
+> **Stale, and being re-measured.** `eval.Default()` now sets `Voronoi` and
+> `Confine` to zero, on the evidence in *The control term* below. Every other
+> number in this file was measured against the previous default and therefore
+> describes a bot that no longer exists. `docs/agents/rules.md` says such an
+> entry is re-run in the same change or removed; it is being re-run instead,
+> because the change was wanted in production first. **Read nothing here as
+> current except the control-term section until this notice is gone.**
+
 ## The headline
 
 | Question | Answer | Evidence |

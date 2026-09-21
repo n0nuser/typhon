@@ -144,7 +144,10 @@ func TestTheHeaderNamesTheDifference(t *testing.T) {
 		{name: "identical arms are a floor run", specA: "nodes=1000", specB: "nodes=1000", wantDiff: ""},
 		{name: "one variable", specA: "nodes=1000", specB: "nodes=1000,depth=1", wantDiff: "depth 0 vs 1"},
 		{
-			name: "two variables are called out", specA: "nodes=1000", specB: "nodes=2000,voronoi=0",
+			// Two keys that do not read a default: `depth` is unset unless
+			// asked for, so this case cannot go vacuous the way a weight can
+			// when the shipping configuration happens to zero it.
+			name: "two variables are called out", specA: "nodes=1000", specB: "nodes=2000,depth=1",
 			wantWarned: true,
 		},
 	}

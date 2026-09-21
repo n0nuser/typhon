@@ -202,7 +202,15 @@ func TestZeroWeightSilencesItsTerm(t *testing.T) {
 			snake("b", 90, pts(9, 9, 9, 8, 9, 7)))
 	}
 
-	full := eval.Default()
+	// Every weight non-zero, and deliberately not eval.Default(): this asserts
+	// that each weight drives its term, which is a property of the evaluation
+	// and not of whichever configuration currently ships. Reading the default
+	// here made the test vacuous for any term the default switches off - it
+	// cannot tell "zeroing did nothing" from "it was already zero".
+	full := eval.Weights{
+		Voronoi: 10, Space: 6, TailReach: 40,
+		Length: 30, Food: 4, Centre: 1, Confine: 6,
+	}
 	s := newState(t)
 	base := eval.New(s.Topo, full).Evaluate(s, 0, 0)
 

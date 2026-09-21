@@ -58,18 +58,29 @@ type Weights struct {
 
 // Default returns the weights the bot plays with.
 //
-// Untuned, and deliberately so. They encode an ordering rather than a
-// measurement: staying alive beats having room, having room beats being long,
-// and being long beats standing anywhere in particular.
+// Mostly untuned: the weights that are non-zero encode an ordering rather than
+// a measurement - staying alive beats having room, having room beats being
+// long, and being long beats standing anywhere in particular.
+//
+// Voronoi and Confine are zero, and that pair is the one thing here that was
+// measured. Together they gate `control`, the Voronoi partition, which the
+// profile put at 85% of the whole search. Switching both off wins **168-232**
+// over 400 four-snake games on two independent seed blocks - 42.0% for keeping
+// them, [37.3%, 46.9%], p=0.0016 - at an *equal node budget*, and the
+// evaluation is 8.6x cheaper without them, so a real turn buys about four
+// times the nodes on top of that.
+//
+// They are left as weights rather than deleted so the measurement stays
+// repeatable: set either one non-zero and the term comes back.
 func Default() Weights {
 	return Weights{
-		Voronoi:   10,
+		Voronoi:   0,
 		Space:     6,
 		TailReach: 40,
 		Length:    30,
 		Food:      4,
 		Centre:    1,
-		Confine:   6,
+		Confine:   0,
 	}
 }
 
