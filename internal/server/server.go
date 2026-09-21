@@ -88,13 +88,18 @@ func (h *Handler) handleMove(w http.ResponseWriter, r *http.Request) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
-	decision, res := h.decide(req, g, start)
+	timeout := timeoutOf(req)
+	budget := g.budget(timeout)
+
+	decision, res := h.decide(req, g, start, budget)
 	h.writeJSON(w, api.MoveResponse{Move: decision.String()})
 
+	// After the write, so that `thought` covers everything the engine is
+	// waiting on: the decode, the search, the encode and the write. What it
+	// does not cover is the network, which is what `overhead` is for.
 	thought := h.now().Sub(start)
-	timeout := timeoutOf(req)
 	if latency, err := strconv.ParseInt(req.You.Latency, 10, 64); err == nil {
-		g.noteTurn(time.Duration(latency)*time.Millisecond, thought)
+		g.noteTurn(time.Duration(latency)*time.Millisecond, thought, budget)
 	}
 
 	g.turns++
@@ -126,11 +131,11 @@ func (h *Handler) handleMove(w http.ResponseWriter, r *http.Request) {
 		"depth", res.Depth, "score", res.Score, "nodes", res.Nodes,
 		"aborted", res.Aborted, "all_losing", res.AllLosing,
 		"health", req.You.Health, "length", req.You.Length,
-		"budget", g.budget(timeout), "overhead", g.overhead, "took", thought)
+		"budget", budget, "overhead", g.overhead, "overshoot", g.overshoot, "took", thought)
 }
 
 // decide returns the move to play. It is never allowed to return nothing.
-func (h *Handler) decide(req api.GameRequest, g *game, start time.Time) (board.Direction, search.Result) {
+func (h *Handler) decide(req api.GameRequest, g *game, start time.Time, budget time.Duration) (board.Direction, search.Result) {
 	state, me, err := stateFrom(req, h.log)
 	if err != nil {
 		// Without a board there is nothing to reason about, and the engine
@@ -150,7 +155,8 @@ func (h *Handler) decide(req api.GameRequest, g *game, start time.Time) (board.D
 		g.topo = state.Topo
 	}
 
-	budget := g.budget(timeoutOf(req))
+	// The deadline runs from the top of the handler, so the decode is spent out
+	// of the same allowance as the search rather than on top of it.
 	res := g.searcher.Search(state, me, search.Budget{Deadline: start.Add(budget)})
 	return res.Move, res
 }
@@ -173,7 +179,7 @@ func (h *Handler) handleEnd(w http.ResponseWriter, r *http.Request) {
 			"mean_depth", mean, "max_depth", g.maxDepth, "nodes", g.nodes,
 			"fallbacks", g.fallbacks, "aborted_depths", g.aborted,
 			"all_losing_turns", g.allLosing,
-			"engine_overhead", g.overhead, "max_think", g.maxThink,
+			"engine_overhead", g.overhead, "post_search", g.overshoot, "max_think", g.maxThink,
 			"timeout_overruns", g.overruns)
 		g.mu.Unlock()
 	}

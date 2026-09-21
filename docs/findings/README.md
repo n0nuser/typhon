@@ -24,3 +24,4 @@ lesson is "that was a typo".
 | [011](011-constrictor-is-the-exception.md) | Search beats one ply in three rulesets out of four |
 | [012](012-an-arm-that-compared-a-flag-with-itself.md) | A benchmark arm ran to completion, reported a p-value, and compared nothing |
 | [013](013-breadth-buys-what-depth-buys.md) | Modelling a second rival wins while searching a ply shallower, by the same counter depth wins on |
+| [014](014-the-budget-modelled-two-of-three-costs.md) | The turn budget's estimate was correct and every reply was still late, for ever |

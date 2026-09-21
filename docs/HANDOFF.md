@@ -38,7 +38,9 @@ nothing beyond. Typhon reaches a mean depth of 7-8 in a duel inside the same
   over 200 games. This is a separate measurement from the duel one above; four
   squares is not two.
 - **The deadline holds on this hardware under synthetic load**: 2,018 turns at
-  load average 13 on eight cores, zero late. See the scope note below.
+  load average 13 on eight cores, zero late. It did **not** hold on Render's
+  0.1-CPU free tier, and the two are different failure modes rather than
+  different amounts of the same one - see the scope note below.
 
 Royale (29-1) and wrapped (28-2) point the same way but are **n=30**, and this
 project's own rule is that nothing below 200 games is a finding. They belong in
@@ -62,13 +64,14 @@ embodies a guess:
 4. **That search pays in royale and wrapped.** 29-1 and 28-2 are large margins
    and they agree with the standard result, which is reassuring and is not
    evidence. n=30.
-5. **That the deadline holds in production.** It holds here: Typhon against
-   Typhon, one machine, contention supplied by a benchmark suite. Render is
-   different silicon, a shared and unpredictable CPU, and a free plan that
-   sleeps. The mechanism is sound - the clock is read every node and only a
-   completed depth is promoted - but "measured on this laptop" and "measured in
-   production" are different claims. The first turn after a cold start is the
-   one to watch.
+5. **That the deadline holds in production.** It did not, and the first live
+   game said so: every move took 501-536ms against a 500ms timeout. The budget
+   modelled the network and the search and nothing else, and on 0.1 CPU the
+   third cost - the freeze between the search stopping and the reply being
+   written - is tens of milliseconds. Fixed by an overshoot term; see
+   [findings/014](findings/014-the-budget-modelled-two-of-three-costs.md).
+   **Still unverified in production**, because the fix has not yet played a
+   live game.
 
 ## What to do first
 
@@ -117,7 +120,7 @@ bot itself:
 ## Where to read
 
 - `BENCHMARK.md` — every measured number, with the negative results kept
-- `docs/findings/` — thirteen things that would not have been guessed
+- `docs/findings/` — fourteen things that would not have been guessed
 - `docs/adr/` — eleven decisions, each with the alternative it rejected
 - `docs/research/` — the rules engine's real semantics; the turn budget; a
   re-analysis of the predecessor's conclusions

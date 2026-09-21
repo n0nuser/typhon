@@ -17,9 +17,17 @@ import (
 const seedOverhead = 50 * time.Millisecond
 
 // safetyMargin is held back from every turn budget on top of the measured
-// overhead, for the encode, the write and whatever the network does that the
-// last turn did not.
+// overhead and overshoot, for whatever this turn does that the last one did
+// not.
 const safetyMargin = 25 * time.Millisecond
+
+// seedOvershoot is the first turn's guess at what a turn costs after the
+// search has already stopped.
+//
+// Conservative for the same reason as seedOverhead, and it matters more: the
+// instance that needs this term is a cold one, and the first turn of the first
+// game is the turn it is least able to answer quickly.
+const seedOvershoot = 50 * time.Millisecond
 
 // game is the per-snake scratch space for one match.
 //
@@ -34,7 +42,18 @@ type game struct {
 
 	// overhead is an EWMA of the round trip minus our own think time.
 	overhead time.Duration
-	lastSeen time.Time
+	// overshoot is an EWMA of the time a turn spent past the budget it was
+	// given - the encode, the write, and on a CPU-throttled instance the
+	// scheduler freezing the process mid-encode until its next period.
+	//
+	// Without this term the loop closes on the wrong number. The search stops
+	// on time, `overhead` correctly excludes our own compute, and the reply
+	// still lands late, because nothing subtracted the gap between the search
+	// stopping and the bytes leaving. On an idle machine that gap is under a
+	// millisecond and the omission is invisible; on Render's 0.1-CPU free tier
+	// it is tens of milliseconds and every turn is late by about that much.
+	overshoot time.Duration
+	lastSeen  time.Time
 
 	turns     int
 	depthSum  int
@@ -55,10 +74,21 @@ type game struct {
 // turn after turn. What is wanted is the part we cannot see - the network and
 // the engine's own handling - which is the reported latency less what we know
 // we spent.
-func (g *game) noteTurn(engineLatency, thought time.Duration) {
+func (g *game) noteTurn(engineLatency, thought, budget time.Duration) {
 	if engineLatency <= 0 {
 		return
 	}
+
+	over := thought - budget
+	if over < 0 {
+		over = 0
+	}
+	if g.overshoot == 0 {
+		g.overshoot = over
+	} else {
+		g.overshoot = (g.overshoot*3 + over) / 4
+	}
+
 	overhead := engineLatency - thought
 	if overhead < 0 {
 		overhead = 0
@@ -79,7 +109,11 @@ func (g *game) budget(timeout time.Duration) time.Duration {
 	if overhead == 0 {
 		overhead = seedOverhead
 	}
-	budget := timeout - overhead - safetyMargin
+	overshoot := g.overshoot
+	if overshoot == 0 {
+		overshoot = seedOvershoot
+	}
+	budget := timeout - overhead - overshoot - safetyMargin
 	if budget < time.Millisecond {
 		// Something is badly wrong with the estimate, but a turn still has to
 		// be answered, and the held fallback answers it.

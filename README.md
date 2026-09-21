@@ -89,10 +89,16 @@ three rulesets and does not clearly do so in constrictor (18-11-1, p=0.27, and
 n=30 at that). There may simply be less for lookahead to find when the board
 fills regardless.
 
-**The deadline is proven on one laptop, not in production.** 2,018 turns
-against the real engine with zero late turns, under synthetic load — but on
-different silicon, on a shared CPU, on a plan that sleeps, that is a different
-claim. The first turn after a cold start is the one to watch.
+**The deadline was proven on one laptop and failed in production.** 2,018 turns
+against the real engine with zero late turns under synthetic load — and then
+every move in the first live game on Render's 0.1-CPU free tier took 501-536ms
+against a 500ms timeout. The budget had no term for the time between the search
+stopping and the reply being written, which is under a millisecond on a real
+core and tens of milliseconds when the scheduler freezes a throttled process
+mid-encode. Fixed, with the loop closed by a self-calibrating estimate;
+see [findings/014](docs/findings/014-the-budget-modelled-two-of-three-costs.md).
+**The fix has not yet played a live game**, so this is corrected rather than
+proven.
 
 **No multi-snake tuning beyond one flag.** `Opponents: 2` is now measured as
 better than 1 with four snakes. Whether 3 would be better is untested, and the
@@ -250,7 +256,7 @@ ruleset. Hand-written expectations would encode the same misreading twice.
 | Where | What |
 | --- | --- |
 | [`BENCHMARK.md`](BENCHMARK.md) | Every number that was measured, including the ones that did not go the way we hoped |
-| [`docs/findings/`](docs/findings/) | Things learned that would not have been guessed - thirteen of them, including two bugs a green gate never saw and a benchmark arm that compared a setting with itself |
+| [`docs/findings/`](docs/findings/) | Things learned that would not have been guessed - fourteen of them, including two bugs a green gate never saw, a benchmark arm that compared a setting with itself, and a turn budget whose estimate was right while every reply was late |
 | [`docs/adr/`](docs/adr/) | Decisions that were not forced, each with the alternative it rejected |
 | [`docs/research/`](docs/research/) | What the rules engine actually does, where the 500ms goes, and what survives of the predecessor's conclusions |
 | [`.review/`](.review/) | The filled pre-merge checklist |

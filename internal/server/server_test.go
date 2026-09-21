@@ -173,11 +173,13 @@ func TestTheBudgetDoesNotChargeOurOwnThinkTimeTwice(t *testing.T) {
 
 	g := &game{}
 	for range 20 {
-		g.noteTurn(roundTrip, thought)
+		g.noteTurn(roundTrip, thought, thought)
 	}
 
 	// The part we cannot see is 20ms, so the budget should stay near
 	// 500 - 20 - margin. A naive implementation subtracts the whole 420.
+	// This turn spent nothing past its budget, so the overshoot term is zero
+	// and must not eat into it either.
 	got := g.budget(timeout)
 	if got < 400*time.Millisecond {
 		t.Errorf("budget collapsed to %v after twenty turns; the estimate is eating our own compute", got)
@@ -321,5 +323,54 @@ func TestUnfamiliarMapIsAnnounced(t *testing.T) {
 				t.Errorf("warned about a known map: %q", buf.String())
 			}
 		})
+	}
+}
+
+// The budget has to close the loop, not just avoid double-charging.
+//
+// A turn costs the engine three things: the network, the search, and whatever
+// happens between the search's deadline expiring and the bytes leaving the
+// process - encode, write, and on a throttled instance the scheduler freezing
+// us mid-encode until the next CPU period. The first two were modelled. The
+// third was assumed to be free, which it is on an idle machine and is not on
+// Render's 0.1-CPU free tier.
+//
+// This plays the loop the way the engine sees it and asserts the one thing
+// that matters: the round trip lands inside the timeout.
+func TestTheBudgetConvergesBelowTheTimeoutOnASlowInstance(t *testing.T) {
+	t.Parallel()
+
+	const (
+		timeout = 500 * time.Millisecond
+		// What the network and the engine's own handling cost.
+		network = 20 * time.Millisecond
+		// What encode, write and a CPU-throttle freeze cost after the search
+		// has already stopped. Small on a fast box, tens of ms on 0.1 CPU.
+		afterSearch = 60 * time.Millisecond
+	)
+
+	g := &game{}
+	var worst time.Duration
+
+	for turn := range 20 {
+		budget := g.budget(timeout)
+		thought := budget + afterSearch
+		roundTrip := thought + network
+
+		// The first turn has no history to learn from; every turn after it
+		// does, and none of them may be late.
+		if turn > 0 && roundTrip > timeout {
+			t.Errorf("turn %d: round trip %v exceeds the %v timeout (budget %v)",
+				turn, roundTrip, timeout, budget)
+		}
+		if roundTrip > worst {
+			worst = roundTrip
+		}
+
+		g.noteTurn(roundTrip, thought, budget)
+	}
+
+	if worst > timeout {
+		t.Errorf("worst round trip over the game was %v against a %v timeout", worst, timeout)
 	}
 }
