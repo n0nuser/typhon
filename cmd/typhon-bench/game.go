@@ -59,17 +59,58 @@ func (c *counters) add(o counters) {
 	c.deathTurnSum += o.deathTurnSum
 }
 
+// seating says which start slot each contestant occupies for one game, and how
+// many snakes are on the board. The slots neither contestant holds are played
+// by neutral snakes.
+//
+// It replaces a boolean because four start squares cannot be described by one.
+// Rotating it across the seed block is what separates "this configuration is
+// better" from "this starting square is better": the predecessor always put the
+// arm under test in slot one and never checked whether the slot itself was
+// worth anything; two identical bots went 29-23-8, so it was.
+type seating struct {
+	a, b   int
+	snakes int
+}
+
+// seatFor returns the seating for the game at index i in a run of `snakes`
+// snakes, cycling through every ordered pair of distinct slots so that each
+// contestant occupies each start square about equally often.
+//
+// For two snakes the cycle is exactly (A first, B first), which is the
+// alternation this harness has always used; every number in BENCHMARK.md was
+// measured under it and stays reproducible.
+func seatFor(i, snakes int) seating {
+	pairs := snakes * (snakes - 1)
+	arrangement := ((i % pairs) + pairs) % pairs
+	a := arrangement / (snakes - 1)
+	offset := arrangement % (snakes - 1)
+
+	b := 0
+	for slot := range snakes {
+		if slot == a {
+			continue
+		}
+		if offset == 0 {
+			b = slot
+			break
+		}
+		offset--
+	}
+	return seating{a: a, b: b, snakes: snakes}
+}
+
 // gameResult is one played game.
 type gameResult struct {
-	seed int
-	// aFirst records which slot arm A played, so that per-slot rates can be
-	// reported separately. The predecessor always put the arm under test in
-	// slot one and never checked whether the slot itself was worth anything;
-	// two identical bots went 29-23-8, so it was.
-	aFirst  bool
+	seed    int
+	seats   seating
 	outcome outcome
 	turns   int
 	perArm  [2]counters
+	// neutral pools the snakes that belong to neither arm. It is zero in a
+	// duel, and in a four-snake run it is the check that the field was
+	// actually playing rather than sitting inert beside the comparison.
+	neutral counters
 	err     error
 }
 
@@ -79,8 +120,8 @@ type gameResult struct {
 // PreUpdateBoard, Execute, PostUpdateBoard every turn - so the games are the
 // same games, without the HTTP round trip, the port juggling or the need to
 // grep decision counts back out of a log.
-func playGame(cfg runConfig, arms [2]arm, seed int, aFirst bool) gameResult {
-	res := gameResult{seed: seed, aFirst: aFirst}
+func playGame(cfg runConfig, arms [2]arm, neutral arm, seed int, seats seating) gameResult {
+	res := gameResult{seed: seed, seats: seats}
 
 	settings := official.NewSettingsWithParams(
 		official.ParamFoodSpawnChance, fmt.Sprint(cfg.foodSpawnChance),
@@ -101,24 +142,37 @@ func playGame(cfg runConfig, arms [2]arm, seed int, aFirst bool) gameResult {
 		return res
 	}
 
-	ids := []string{"slot0", "slot1"}
+	ids := make([]string, seats.snakes)
+	for i := range ids {
+		ids[i] = fmt.Sprintf("slot%d", i)
+	}
 	state, err := maps.SetupBoard(gameMap.ID(), ruleset.Settings(), cfg.width, cfg.height, ids)
 	if err != nil {
 		res.err = fmt.Errorf("setup: %w", err)
 		return res
 	}
 
-	// Slot 0 plays arm A when aFirst, otherwise arm B. Alternating this across
-	// seeds is what separates "this configuration is better" from "this
-	// starting square is better".
-	slotArm := [2]int{0, 1}
-	if !aFirst {
-		slotArm = [2]int{1, 0}
-	}
-
-	players := make([]*player, len(ids))
+	// One contestant per arm; every other slot is a neutral snake. Two of each
+	// arm would double the exposure per game and destroy the thing the numbers
+	// rest on - "who won" would stop being binary, an arm could eliminate
+	// itself, and the paired McNemar test has no cell for "arm A took first and
+	// third". See ADR 0011.
+	players := make([]*player, seats.snakes)
 	for i := range players {
-		players[i] = newPlayer(arms[slotArm[i]], cfg)
+		switch i {
+		case seats.a:
+			players[i] = newPlayer(arms[0], cfg)
+		case seats.b:
+			players[i] = newPlayer(arms[1], cfg)
+		default:
+			// Each neutral gets its own seed. They share a configuration, and a
+			// field whose members draw from one stream would move as one snake
+			// in two places - which matters the moment anyone points -neutral
+			// at the random control.
+			seated := neutral
+			seated.seed = neutral.seed + i
+			players[i] = newPlayer(seated, cfg)
+		}
 	}
 
 	for turn := 0; turn < cfg.maxTurns; turn++ {
@@ -167,27 +221,51 @@ func playGame(cfg runConfig, arms [2]arm, seed int, aFirst bool) gameResult {
 		}
 	}
 
+	res.perArm[0] = players[seats.a].stats
+	res.perArm[1] = players[seats.b].stats
 	for i := range players {
-		res.perArm[slotArm[i]] = players[i].stats
+		if i != seats.a && i != seats.b {
+			res.neutral.add(players[i].stats)
+		}
 	}
 
-	alive0, alive1 := aliveIn(state, ids[0]), aliveIn(state, ids[1])
-	switch {
-	case alive0 == alive1:
-		res.outcome = draw
-	case alive0:
-		res.outcome = armOutcome(slotArm[0])
-	default:
-		res.outcome = armOutcome(slotArm[1])
-	}
+	res.outcome = outlived(
+		aliveIn(state, ids[seats.a]), players[seats.a].stats,
+		aliveIn(state, ids[seats.b]), players[seats.b].stats,
+	)
 	return res
 }
 
-func armOutcome(armIndex int) outcome {
-	if armIndex == 0 {
+// outlived decides which arm did better, from survival first and elimination
+// turn second.
+//
+// Last-snake-standing alone is not enough once there are four snakes: those
+// games reach the turn cap far more often than duels do, and scoring every
+// capped game a draw discards most of the sample. Whoever was eliminated later
+// did better in the games nobody won outright.
+//
+// The trap this exists to avoid: counters.deathTurnSum is zero for a snake that
+// never died, so comparing the two turn counts without checking survival first
+// reads a survivor as having died on turn 0 and hands the game to the loser.
+//
+// In a duel the elimination-turn branch is unreachable in practice - a game
+// ends the moment one of two snakes dies - so this preserves the behaviour
+// every existing number in BENCHMARK.md was measured under.
+func outlived(aAlive bool, a counters, bAlive bool, b counters) outcome {
+	switch {
+	case aAlive && bAlive:
+		return draw
+	case aAlive:
 		return armAWon
+	case bAlive:
+		return armBWon
+	case a.deathTurnSum > b.deathTurnSum:
+		return armAWon
+	case b.deathTurnSum > a.deathTurnSum:
+		return armBWon
+	default:
+		return draw
 	}
-	return armBWon
 }
 
 func slotOf(ids []string, id string) int {

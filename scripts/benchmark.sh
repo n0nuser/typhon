@@ -76,7 +76,17 @@ if [ "$ARMS" = all ]; then
     run voronoi      -a "nodes=$NODES" -b "nodes=$NODES,voronoi=0" -name-a with -name-b without
     run tailreach    -a "nodes=$NODES" -b "nodes=$NODES,tailreach=0" -name-a with -name-b without
     run confine      -a "nodes=$NODES" -b "nodes=$NODES,confine=0" -name-a with -name-b without
-    run opponents    -a "nodes=$NODES,opponents=2" -b "nodes=$NODES,opponents=1" -name-a two -name-b one
+
+    # The opponents arm is four-snake or it is nothing. The search models
+    # min(Opponents, live rivals) rivals, so in a duel both arms model the one
+    # rival and play bit-identical games - which this arm did for the whole of
+    # the first build, reporting 14-16 and p=0.855 about a flag it never varied.
+    # See docs/findings/012. The harness now refuses the duel form outright.
+    #
+    # A four-snake arm needs its own floor: the start-square result in
+    # BENCHMARK.md was measured in duels and says nothing about four squares.
+    run floor-4p     -snakes 4 -a "nodes=$NODES" -b "nodes=$NODES" -name-a alpha -name-b beta
+    run opponents-4p -snakes 4 -a "nodes=$NODES,opponents=2" -b "nodes=$NODES,opponents=1" -name-a two -name-b one
     for g in royale constrictor wrapped; do
         run "ruleset-$g" -rules "$g" -a "nodes=$NODES" -b "nodes=$NODES,depth=1" \
             -name-a full -name-b oneply

@@ -91,6 +91,8 @@ func run() error {
 		height   = flag.Int("H", 11, "board height")
 		maxTurns = flag.Int("max-turns", 1500, "abandon a game after this many turns")
 		parallel = flag.Int("p", runtime.NumCPU(), "games to run at once")
+		snakes   = flag.Int("snakes", 2, "snakes on the board; the slots neither arm holds play -neutral")
+		neutral  = flag.String("neutral", "", "the field's spec when -snakes > 2; defaults to the shipped config at arm A's node budget")
 		helpSpec = flag.Bool("help-spec", false, "list the arm spec keys and exit")
 		calib    = flag.Bool("calibrate", false, "report how many nodes a wall-clock budget buys here, and exit")
 	)
@@ -120,7 +122,20 @@ func run() error {
 	}
 	arms := [2]arm{a, b}
 
-	printHeader(*label, *games, *seedBase, cfg, arms, *parallel)
+	if *snakes < 2 || *snakes > rules.MaxSnakes {
+		return fmt.Errorf("-snakes %d: the board holds 2 to %d", *snakes, rules.MaxSnakes)
+	}
+	field, err := parseNeutral(*neutral, a)
+	if err != nil {
+		return fmt.Errorf("neutral: %w", err)
+	}
+	if why := inert(arms, *snakes); why != "" {
+		return fmt.Errorf("this run would compare a configuration with itself: %s.\n"+
+			"       A run that measures nothing still prints a split and a p-value; see\n"+
+			"       docs/findings/012-an-arm-that-compared-a-flag-with-itself.md", why)
+	}
+
+	printHeader(*label, *games, *seedBase, cfg, arms, field, *snakes, *parallel)
 	if *games < 200 {
 		fmt.Printf("NOTE   n=%d is a smoke run. Nothing below 200 games is fit to publish:\n"+
 			"       the predecessor's identical configuration went 8-10-2 and 25-9-6\n"+
@@ -128,13 +143,13 @@ func run() error {
 	}
 
 	start := time.Now()
-	results := playAll(cfg, arms, *seedBase, *games, *parallel)
+	results := playAll(cfg, arms, field, *seedBase, *games, *snakes, *parallel)
 	report(*label, arms, results, time.Since(start))
 	return nil
 }
 
-// playAll runs the batch, alternating which arm starts in which slot.
-func playAll(cfg runConfig, arms [2]arm, seedBase, games, parallel int) []gameResult {
+// playAll runs the batch, rotating which arm starts in which slot.
+func playAll(cfg runConfig, arms [2]arm, neutral arm, seedBase, games, snakes, parallel int) []gameResult {
 	results := make([]gameResult, games)
 	jobs := make(chan int)
 
@@ -144,8 +159,7 @@ func playAll(cfg runConfig, arms [2]arm, seedBase, games, parallel int) []gameRe
 		go func() {
 			defer wg.Done()
 			for i := range jobs {
-				// Arm A starts in slot 0 on even seeds and slot 1 on odd ones.
-				results[i] = playGame(cfg, arms, seedBase+i, i%2 == 0)
+				results[i] = playGame(cfg, arms, neutral, seedBase+i, seatFor(i, snakes))
 			}
 		}()
 	}
@@ -206,6 +220,19 @@ const specHelp = `Arm spec keys, given as -a 'key=value,key=value':
                  evaluation weights. Zero switches a term off.
 
 Two arms should differ in exactly one key. The header prints the difference.
+
+A comparison that cannot vary anything is refused rather than reported: -snakes 2
+with opponents=2 against opponents=1 is the same configuration twice, because the
+search models min(Opponents, live rivals) rivals.
+
+Field flags:
+
+  -snakes N      snakes on the board (default 2). Above two, one contestant per
+                 arm is seated and every other slot plays -neutral, so the
+                 comparison stays a paired binary. See ADR 0011.
+  -neutral SPEC  the field's configuration when -snakes > 2, in the same form as
+                 an arm. Defaults to the shipped config at arm A's node budget;
+                 the header prints what it resolved to.
 `
 
 // parseArm turns a spec string into a configuration.
@@ -290,12 +317,22 @@ func setWeight(w *eval.Weights, key string, v eval.Score) {
 	}
 }
 
-func printHeader(label string, games, seedBase int, cfg runConfig, arms [2]arm, parallel int) {
-	fmt.Printf("RUN    %s: %d games, seeds %d-%d, %s on %s (%dx%d), %d at a time\n",
-		label, games, seedBase, seedBase+games-1, cfg.gameType, cfg.mapName,
+func printHeader(label string, games, seedBase int, cfg runConfig, arms [2]arm, neutral arm, snakes, parallel int) {
+	field := ""
+	if snakes > 2 {
+		field = fmt.Sprintf("%d snakes, ", snakes)
+	}
+	fmt.Printf("RUN    %s: %d games, %sseeds %d-%d, %s on %s (%dx%d), %d at a time\n",
+		label, games, field, seedBase, seedBase+games-1, cfg.gameType, cfg.mapName,
 		cfg.width, cfg.height, parallel)
 	fmt.Printf("ARM A  %-10s %s\n", arms[0].name, describe(arms[0]))
 	fmt.Printf("ARM B  %-10s %s\n", arms[1].name, describe(arms[1]))
+	if snakes > 2 {
+		// Printed rather than implied: a four-snake result is "A beats B in a
+		// field containing these snakes", not "A beats B in the general
+		// four-snake case", and the field is part of the claim.
+		fmt.Printf("FIELD  %d neutral %s\n", snakes-2, describe(neutral))
+	}
 
 	if diff := difference(arms[0], arms[1]); diff == "" {
 		fmt.Printf("DIFF   none - this is a floor run, measuring what one slot is worth\n" +
@@ -354,6 +391,54 @@ func difference(a, b arm) string {
 		joined += "  <-- more than one variable; this run cannot attribute a result"
 	}
 	return joined
+}
+
+// parseNeutral builds the configuration the slots neither arm holds will play.
+//
+// The default is the shipped configuration at arm A's node budget. Matching the
+// budget matters: a field thinking twenty times harder than the contestants is
+// a different experiment, and the difference would not show up anywhere except
+// in the result.
+func parseNeutral(spec string, a arm) (arm, error) {
+	if spec == "" {
+		field := arm{name: "field", cfg: search.DefaultConfig(), nodes: a.nodes, seed: 3}
+		return field, nil
+	}
+	return parseArm("field", spec, 3)
+}
+
+// inert names the reason a comparison cannot vary anything, or returns empty.
+//
+// This exists because a benchmark arm once ran to completion, printed 14-16 and
+// p=0.855, and had compared a configuration with itself: the sweep varied
+// `opponents` in duels, and the search models min(Opponents, live rivals)
+// rivals, which is 1 either way when there is one rival. Nothing in the run
+// said so. The DIFF line said `opponents 2 vs 1`, truthfully, about a flag that
+// resolved to the same thing.
+//
+// The check has to be structural. Comparing the two arms' path counters after
+// the fact does not work: the arms sit in different slots and play different
+// snakes, so identical configurations produce different counts anyway - the
+// floor run's two identical arms come out at 12,206 and 12,208 turns.
+func inert(arms [2]arm, snakes int) string {
+	if arms[0].random || arms[1].random {
+		return ""
+	}
+	rivals := snakes - 1
+	x, y := arms[0].cfg.Opponents, arms[1].cfg.Opponents
+	if x != y && min(x, y) >= rivals {
+		return fmt.Sprintf("opponents %d vs %d cannot differ with %d snakes, because the "+
+			"search models min(Opponents, live rivals) and there %s",
+			x, y, snakes, plural(rivals, "is %d rival", "are %d rivals"))
+	}
+	return ""
+}
+
+func plural(n int, one, many string) string {
+	if n == 1 {
+		return fmt.Sprintf(one, n)
+	}
+	return fmt.Sprintf(many, n)
 }
 
 func weightOf(w eval.Weights, key string) eval.Score {
