@@ -318,7 +318,8 @@ func (s *State) vacate(cell uint16) {
 // loops read as board scanning rather than as arithmetic.
 func trailingZeros(v uint64) int { return bits.TrailingZeros64(v) }
 
-// Passable returns the squares a snake may move into on the next turn.
+// Passable returns the squares a snake may **not** move into on the next turn -
+// the set every caller names `blocked`.
 //
 // It is Occupied with each living snake's tail released, because a tail vacates
 // as its snake moves. The release is one count, not one square, which is the

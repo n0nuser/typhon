@@ -374,3 +374,53 @@ func TestTheBudgetConvergesBelowTheTimeoutOnASlowInstance(t *testing.T) {
 		t.Errorf("worst round trip over the game was %v against a %v timeout", worst, timeout)
 	}
 }
+
+// The cost after the search stops is bimodal on a throttled instance, and an
+// average of a bimodal cost is wrong in both directions.
+//
+// Measured over one live game on Render: either under a millisecond or 76-85ms,
+// with almost nothing between, because the scheduler's freeze either lands
+// after the deadline or it does not. This alternates the two and asserts what
+// the engine asserts - that no reply is late.
+func TestTheBudgetSurvivesABimodalPostSearchCost(t *testing.T) {
+	t.Parallel()
+
+	const (
+		timeout = 500 * time.Millisecond
+		network = 40 * time.Millisecond
+		frozen  = 85 * time.Millisecond
+	)
+
+	g := &game{}
+	var late, total int
+
+	for turn := range 60 {
+		budget := g.budget(timeout)
+
+		// Every third turn the scheduler freezes us after the search.
+		after := time.Duration(0)
+		if turn%3 == 0 {
+			after = frozen
+		}
+		thought := budget + after
+		roundTrip := thought + network
+
+		total++
+		if turn > 0 && roundTrip > timeout {
+			late++
+			t.Errorf("turn %d: round trip %v exceeds %v (budget %v, after-search %v)",
+				turn, roundTrip, timeout, budget, after)
+		}
+		g.noteTurn(roundTrip, thought, budget)
+	}
+
+	if late > 0 {
+		t.Errorf("%d of %d turns were late", late, total)
+	}
+
+	// And the budget must still be worth having: a bot that answers on time by
+	// not thinking has solved the wrong problem.
+	if got := g.budget(timeout); got < 250*time.Millisecond {
+		t.Errorf("budget collapsed to %v; the estimate is too conservative to play with", got)
+	}
+}

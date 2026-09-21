@@ -83,21 +83,35 @@ func (g *game) noteTurn(engineLatency, thought, budget time.Duration) {
 	if over < 0 {
 		over = 0
 	}
-	if g.overshoot == 0 {
-		g.overshoot = over
-	} else {
-		g.overshoot = (g.overshoot*3 + over) / 4
-	}
+	g.overshoot = peakHold(g.overshoot, over)
 
 	overhead := engineLatency - thought
 	if overhead < 0 {
 		overhead = 0
 	}
-	if g.overhead == 0 {
-		g.overhead = overhead
-		return
+	g.overhead = peakHold(g.overhead, overhead)
+}
+
+// peakHold folds one sample into a running estimate that rises at once and
+// falls slowly.
+//
+// A mean is the wrong estimator for a deadline, and the live logs say why. The
+// cost a turn pays after its search stops is **bimodal** on a throttled
+// instance: measured over one game it was either under a millisecond or
+// 76-85ms, with almost nothing in between, because the scheduler's freeze
+// either lands after the deadline or it does not. An average of that sits near
+// 40ms and is wrong both ways - too generous on the turns that freeze, so the
+// reply is late, and too cautious on the turns that do not, so the search is
+// short-changed for nothing.
+//
+// What a deadline needs is an upper bound. Rising immediately means one late
+// turn is enough to learn from; decaying slowly means a single outlier does not
+// pin the budget for the rest of the game.
+func peakHold(current, sample time.Duration) time.Duration {
+	if sample > current {
+		return sample
 	}
-	g.overhead = (g.overhead*3 + overhead) / 4
+	return (current*15 + sample) / 16
 }
 
 // budget returns how long the search may run this turn.
