@@ -35,7 +35,14 @@ built that way refuses moves that are perfectly safe.
 The evaluation is Voronoi control, reachable space against our own length, tail
 reachability, length advantage, hunger against distance to food, centre control
 and cutting rivals off. Every term has a weight, and a weight of zero switches
-its term off — which is what lets the harness vary exactly one thing.
+its term off — which is what lets the harness vary exactly one thing. The
+weights themselves are guesses; see below.
+
+**Only the nearest rivals are modelled properly.** Three opponents searched
+exhaustively is 256 joint moves a ply, most of them spent on snakes that cannot
+reach us inside the horizon, so the two nearest get a real search and the rest
+get a cheap greedy move. With four snakes that beats modelling one — 123-71 at
+n=200, p=0.0003 — and it wins while searching more than a ply shallower.
 
 **Safety is never delegated.** The one-ply fallback is computed and held before
 the search starts, only a completed depth is ever promoted, and when every move
@@ -45,10 +52,79 @@ square.
 Four rulesets, properly: `standard`, `royale`, `constrictor`, `wrapped`.
 Anything else is played with standard logic **and says so in the log**.
 
+## What it does not do
+
+Stated plainly, because a capability list that only lists capabilities is an
+advertisement.
+
+**Not deployed.** `render.yaml` is written and its build command is verified;
+the Render dashboard step has not been done. Every number below was measured
+locally.
+
+**Not measured against its predecessor.** The headline nobody has run is Typhon
+against `battlesnake-jev`. It needs the old binary answering over HTTP at about
+half a second a turn — two hundred games is upwards of eight hours — and the
+in-process harness cannot drive an external server, so it needs a driver that
+does not exist.
+
+**The weights are guesses.** `eval.Default()` encodes an ordering, not a
+measurement. Two of the seven have been put to two hundred games each and
+neither separated from its own absence: tail reachability, the largest weight in
+the evaluation, at 105-95, and opponent confinement at 99-101. The other five
+have never been tested. Nothing here is tuned; there was budget for structural
+questions and none for searching weight space.
+
+**No learning, no opening book, no endgame table.** The move loop is a search
+and nothing else. No model inference, no training, no persistence between games
+beyond one transposition table per game.
+
+**Four rulesets, not all of them.** `standard`, `royale`, `constrictor` and
+`wrapped` are implemented against the real semantics. Anything else — solo,
+hazard-pits maps, custom variants — is played with standard logic and says so in
+the log rather than failing quietly. Board maps other than the ruleset's own
+default are not modelled.
+
+**Constrictor is unresolved.** Search beats one ply decisively in the other
+three rulesets and does not clearly do so in constrictor (18-11-1, p=0.27, and
+n=30 at that). There may simply be less for lookahead to find when the board
+fills regardless.
+
+**The deadline is proven on one laptop, not in production.** 2,018 turns
+against the real engine with zero late turns, under synthetic load — but on
+different silicon, on a shared CPU, on a plan that sleeps, that is a different
+claim. The first turn after a cold start is the one to watch.
+
+**No multi-snake tuning beyond one flag.** `Opponents: 2` is now measured as
+better than 1 with four snakes. Whether 3 would be better is untested, and the
+cost rises from 64 joint moves a ply to 256.
+
+## Configuration
+
+Everything is an environment variable with a working default, so the deployed
+service needs none of them set.
+
+| Variable | Default | What it is |
+| --- | --- | --- |
+| `PORT` | `8080` | listen port |
+| `LOG_LEVEL` | `info` | `debug`, `info`, `warn`, `error` |
+| `TYPHON_AUTHOR` | `n0nuser` | shown on the snake's profile |
+| `TYPHON_COLOR` | `#8A0303` | deep volcanic red |
+| `TYPHON_HEAD` | `fang` | head sprite |
+| `TYPHON_TAIL` | `sharp` | tail sprite |
+| `TYPHON_VERSION` | `0.1.0` | reported in `/` |
+| `TYPHON_OPPONENTS` | `2` | rivals modelled properly; the rest get a greedy move |
+| `TYPHON_TABLE_BITS` | `20` | transposition table sized `1<<N` entries |
+| `TYPHON_NO_TABLE` | unset | set to disable the transposition table |
+
+The appearance is themed rather than arbitrary: Typhon is the serpent-headed
+monster buried under Etna, so a fanged head and volcanic red. Head and tail
+names come from the Battlesnake customization list.
+
 ## Status
 
-Playing. `BENCHMARK.md` has what has actually been measured, including the
-results that did not go the way we hoped.
+Built, measured, gated and pushed — **not deployed**. `BENCHMARK.md` has what
+has actually been measured, including the results that did not go the way we
+hoped.
 
 ## Running it
 
@@ -128,10 +204,14 @@ ruleset. Hand-written expectations would encode the same misreading twice.
 
 - **n=20 is worthless.** The predecessor ran the same configuration on two seed
   blocks and got 8-10-2 and 25-9-6. Nothing below 200 games is published here.
-- **The floor is measured before anything is compared.** Two identical bots
-  went 29-23-8 over there, so one starting slot was worth about six points
-  before anyone changed anything. The arms alternate slots and per-slot rates
-  are reported separately.
+- **The floor is measured before anything is compared.** The predecessor read
+  29-23-8 as "one starting slot is worth about six points". Re-analysed, that
+  interval contains 50%; measured properly here it is 49.3% over a thousand
+  duel games, and 25% per square over two hundred four-snake ones. The arms
+  rotate through the slots and per-slot rates are reported separately.
+- **A comparison that cannot vary its own flag is refused.** An arm ran for a
+  whole build reporting 14-16 and p=0.855 about a setting it never varied. The
+  harness now errors rather than printing a split.
 - **The comparison is paired.** Both arms play the same seeds and the test is
   McNemar's on the games where they disagreed, so the seed's own difficulty
   cancels instead of being averaged over.
@@ -148,7 +228,7 @@ ruleset. Hand-written expectations would encode the same misreading twice.
 | Where | What |
 | --- | --- |
 | [`BENCHMARK.md`](BENCHMARK.md) | Every number that was measured, including the ones that did not go the way we hoped |
-| [`docs/findings/`](docs/findings/) | Things learned that would not have been guessed - eleven of them, including two bugs a green gate never saw |
+| [`docs/findings/`](docs/findings/) | Things learned that would not have been guessed - thirteen of them, including two bugs a green gate never saw and a benchmark arm that compared a setting with itself |
 | [`docs/adr/`](docs/adr/) | Decisions that were not forced, each with the alternative it rejected |
 | [`docs/research/`](docs/research/) | What the rules engine actually does, where the 500ms goes, and what survives of the predecessor's conclusions |
 | [`.review/`](.review/) | The filled pre-merge checklist |
