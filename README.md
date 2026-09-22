@@ -32,17 +32,22 @@ once every snake has committed. Modelling it as alternating turns makes the
 opponent omniscient and the evaluation pathologically pessimistic, and a bot
 built that way refuses moves that are perfectly safe.
 
-The evaluation is Voronoi control, reachable space against our own length, tail
-reachability, length advantage, hunger against distance to food, centre control
-and cutting rivals off. Every term has a weight, and a weight of zero switches
-its term off — which is what lets the harness vary exactly one thing. The
-weights themselves are guesses; see below.
+**The evaluation is three terms**, and it used to be seven. Reachable space
+against our own length, length advantage over the longest rival, and hunger
+against distance to food. The other four — Voronoi control, tail reachability,
+opponent confinement and centre control — are switched off because they were
+**measured as costing games**, each over 400 four-snake games and replicated on
+a second seed block. Centre was the worst of them and carried the smallest
+weight; tail reachability carried the largest. `BENCHMARK.md` has every number.
+
+They remain weights rather than deletions so the measurements stay repeatable:
+set one non-zero and the term comes back.
 
 **Only the nearest rivals are modelled properly.** Three opponents searched
 exhaustively is 256 joint moves a ply, most of them spent on snakes that cannot
 reach us inside the horizon, so the two nearest get a real search and the rest
-get a cheap greedy move. With four snakes that beats modelling one — 123-71 at
-n=200, p=0.0003 — and it wins while searching more than a ply shallower.
+get a cheap greedy move. Whether two is the right number is **unknown** — this
+project has measured it three times and been wrong twice.
 
 **Safety is never delegated.** The one-ply fallback is computed and held before
 the search starts, only a completed depth is ever promoted, and when every move
@@ -67,12 +72,12 @@ half a second a turn — two hundred games is upwards of eight hours — and the
 in-process harness cannot drive an external server, so it needs a driver that
 does not exist.
 
-**The weights are guesses.** `eval.Default()` encodes an ordering, not a
-measurement. Two of the seven have been put to two hundred games each and
-neither separated from its own absence: tail reachability, the largest weight in
-the evaluation, at 105-95, and opponent confinement at 99-101. The other five
-have never been tested. Nothing here is tuned; there was budget for structural
-questions and none for searching weight space.
+**The weights are measured, but barely tuned.** Every term has now been tested
+on its own and replicated, which is why four of them are zero. What has *not*
+been searched is weight space: each surviving term was tried at one or two
+magnitudes, not swept. `space` at 12 instead of 6 changes almost nothing;
+`food` at 12 looked like a win at p=0.0003 and then reversed on a second seed
+block. There is very likely a better set of numbers than these three.
 
 **No learning, no opening book, no endgame table.** The move loop is a search
 and nothing else. No model inference, no training, no persistence between games
@@ -245,11 +250,17 @@ ruleset. Hand-written expectations would encode the same misreading twice.
 
 - **n=20 is worthless.** The predecessor ran the same configuration on two seed
   blocks and got 8-10-2 and 25-9-6. Nothing below 200 games is published here.
-- **The floor is measured before anything is compared.** The predecessor read
-  29-23-8 as "one starting slot is worth about six points". Re-analysed, that
-  interval contains 50%; measured properly here it is 49.3% over a thousand
-  duel games, and 25% per square over two hundred four-snake ones. The arms
-  rotate through the slots and per-slot rates are reported separately.
+- **Every board is played twice, with the contestants exchanged.** Whatever a
+  board is worth to the square it favours is paid to both arms once and cancels.
+  Before this, two *identical* configurations came back 120-80 at p=0.0058, and
+  shifting the seed base by one mirrored it exactly.
+- **The verdict is taken on boards, not games**, because the two games of a
+  mirrored pair are not independent. An arm takes a board only by winning it
+  from both slots; one each is a split, and splits are printed so the share of
+  the outcome the configuration did not decide is visible.
+- **Anything that separates is replicated on a second seed block** before it is
+  believed. Committed to before the arms were run, and it caught three results,
+  including one at p=0.0003 that reversed.
 - **A comparison that cannot vary its own flag is refused.** An arm ran for a
   whole build reporting 14-16 and p=0.855 about a setting it never varied. The
   harness now errors rather than printing a split.
@@ -269,15 +280,16 @@ ruleset. Hand-written expectations would encode the same misreading twice.
 | Where | What |
 | --- | --- |
 | [`BENCHMARK.md`](BENCHMARK.md) | Every number that was measured, including the ones that did not go the way we hoped |
-| [`docs/findings/`](docs/findings/) | Things learned that would not have been guessed - fourteen of them, including two bugs a green gate never saw, a benchmark arm that compared a setting with itself, and a turn budget whose estimate was right while every reply was late |
+| [`docs/findings/`](docs/findings/) | Things learned that would not have been guessed - fifteen of them, including a benchmark arm that compared a setting with itself, a turn budget whose estimate was right while every reply was late, and a harness in which a bot beat an identical copy of itself |
 | [`docs/adr/`](docs/adr/) | Decisions that were not forced, each with the alternative it rejected |
 | [`docs/research/`](docs/research/) | What the rules engine actually does, where the 500ms goes, and what survives of the predecessor's conclusions |
 | [`.review/`](.review/) | The filled pre-merge checklist |
 
 If you read one, read
-[findings/002](docs/findings/002-a-suggestive-result-that-evaporated.md): the
-largest weight in the evaluation looked worth 63% at thirty games and 52.5% at
-two hundred, with nothing changed but the sample size.
+[findings/015](docs/findings/015-the-board-was-choosing-the-winner.md): a bot
+beat an identical copy of itself at p=0.0058, every safeguard in the project was
+running, and none of them could see it — because a control that aggregates
+cannot detect a bias that correlates.
 
 ## Contributing
 

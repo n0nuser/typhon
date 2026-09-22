@@ -58,28 +58,45 @@ type Weights struct {
 
 // Default returns the weights the bot plays with.
 //
-// Mostly untuned: the weights that are non-zero encode an ordering rather than
-// a measurement - staying alive beats having room, having room beats being
-// long, and being long beats standing anywhere in particular.
+// Every weight here has been measured, which was not true of any of them
+// before. Each was tested on its own against the rest of the evaluation, over
+// 400 four-snake games - 200 boards played twice with the contestants' slots
+// exchanged - and anything that separated was replicated on a second seed
+// block before it was believed. `BENCHMARK.md` has the numbers.
 //
-// Voronoi and Confine are zero, and that pair is the one thing here that was
-// measured. Together they gate `control`, the Voronoi partition, which the
-// profile put at 85% of the whole search. Switching both off wins **168-232**
-// over 400 four-snake games on two independent seed blocks - 42.0% for keeping
-// them, [37.3%, 46.9%], p=0.0016 - at an *equal node budget*, and the
-// evaluation is 8.6x cheaper without them, so a real turn buys about four
-// times the nodes on top of that.
+// Four of the seven terms are zero because they were **measured as harmful**,
+// not merely unproven:
 //
-// They are left as weights rather than deleted so the measurement stays
-// repeatable: set either one non-zero and the term comes back.
+//   - Centre, the strongest effect found: 103-14 and 107-21 for switching it
+//     off. Tested at -1 as well, in case it was only the wrong way round; that
+//     is worse still at 85-11. The term has nothing in it at any sign.
+//   - TailReach, at 69-27 and 77-33 for off. It carried the largest weight in
+//     the evaluation. At 10 rather than 40 it is merely useless, 38-48, so
+//     there is no magnitude that rescues it.
+//   - Voronoi and Confine together gate `control`, the Voronoi partition, which
+//     the profile put at 85% of the search: 69-29 and 64-32 for off, and the
+//     evaluation is 8.6x cheaper without it.
+//
+// What is left earns its place, or at least does not cost anything:
+//
+//   - Space, 57-34 and 64-27. Doubling it to 12 changes almost nothing, 22-19
+//     with 159 of 200 boards split.
+//   - Food, 79-16 and 77-24. Raising it to 12 looked like a further win at
+//     p=0.0003 and then did not replicate, so it stays at 4.
+//   - Length does not separate either way, 47-40 and 55-40. Kept because "not
+//     shown to help" is not "shown to hurt", and it is the one term here in
+//     that position.
+//
+// The zeroed terms are weights rather than deletions so every one of those
+// measurements stays repeatable: set one non-zero and the term comes back.
 func Default() Weights {
 	return Weights{
 		Voronoi:   0,
 		Space:     6,
-		TailReach: 40,
+		TailReach: 0,
 		Length:    30,
 		Food:      4,
-		Centre:    1,
+		Centre:    0,
 		Confine:   0,
 	}
 }

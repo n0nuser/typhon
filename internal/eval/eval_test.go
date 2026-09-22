@@ -96,10 +96,25 @@ func TestPreferences(t *testing.T) {
 		reason        string
 	}{
 		{
-			name:   "open space beats a pocket",
+			// Room the snake can actually use, not room in the abstract: the
+			// space term saturates at twice our own length, so a three-long
+			// snake in the middle of an empty board and one in a corner score
+			// the same, and correctly. What separates these is a genuine
+			// pocket - walled in with less room than the snake is long.
+			//
+			// This case used to compare the middle of an empty board against a
+			// corner, and passed only because of the centre weight. That weight
+			// is now zero, because it was measured as the most harmful term in
+			// the evaluation: 103-14 and 107-21 for switching it off, and worse
+			// still at -1. The preference was an intuition, it was never
+			// measured, and when it was it turned out to cost games.
+			name:   "a pocket smaller than the snake is worse than open board",
 			better: []rules.SnakeSpec{snake("a", 90, pts(5, 5, 5, 4, 5, 3)), snake("b", 90, pts(9, 9, 9, 8, 9, 7))},
-			worse:  []rules.SnakeSpec{snake("a", 90, pts(0, 0, 1, 0, 1, 1)), snake("b", 90, pts(9, 9, 9, 8, 9, 7))},
-			reason: "the middle of an empty board has more room than a corner",
+			worse: []rules.SnakeSpec{
+				snake("a", 90, pts(0, 0, 0, 1, 0, 2)),
+				snake("b", 90, pts(1, 0, 1, 1, 1, 2, 1, 3, 0, 3)),
+			},
+			reason: "a snake sealed into fewer squares than its own length is losing",
 		},
 		{
 			name:   "being longer than the rival is better",

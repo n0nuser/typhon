@@ -16,84 +16,86 @@ nothing beyond. Typhon reaches a mean depth of 7-8 in a duel inside the same
 | --- | --- |
 | Gates | `make check` — gofmt+gofumpt, vet, golangci-lint v2, `go test -race -cover`, build. Green. Enforced by a pre-push hook that has blocked pushes. |
 | Tests | 7,200 lines of Go; coverage 82-97% per package; simulator differentially tested against the official rules on every turn of thousands of random playouts |
-| Live play | 2,018 turns against the real engine over HTTP, four rulesets, **zero late turns** |
-| Benchmarks | Seven n=200 paired runs, two of them four-snake, plus a full n=30 sweep; see `BENCHMARK.md` |
-| Deployed | **No.** `render.yaml` is written and the build command is verified; the Render dashboard step has not been done. |
+| Live play | Deployed on Render free tier. One game against `det`: 203 turns, length 24, mean depth 8, 75,240 nodes a turn, zero overruns - and still lost, to a timeout the bot's clock could not see |
+| Benchmarks | Rewritten from nothing on the mirrored harness: floors at both parities, two headline arms, six evaluation terms each replicated on a second seed block. See `BENCHMARK.md` |
+| Deployed | **Yes**, Render free tier, 0.1 CPU. Sleeps after 15 minutes; leaderboard games run once a day in a batch, so a cron needs to warm it for that window only. |
 
 ## What is established
 
-- **Search pays: 191-9** at n=200 paired, p<0.0001, CI [91.7%, 97.6%], against a
-  measured floor of 51%. Standard ruleset, 11x11.
-- **It is not a coin: 200-0**, n=200.
-- **There is no start-position bias**: 49.3% [46.2%, 52.4%] over 1,000 games —
-  which contradicts the predecessor's stated explanation for its own noise.
-- **Opponent confinement neither helps nor hurts**: 99-101 at n=200, p=0.94.
-  The n=30 sweep's 19-11 against the term was noise; weight 6 is not paying to
-  lose, and it is also not paying for anything.
-- **Modelling two rivals beats modelling one, with four snakes**: 123-71 at
-  n=200, p=0.0003, [56.4%, 69.9%]. It wins while searching a ply shallower
-  (4.20 against 5.28), reaching hopeless positions less than half as often per
-  turn. The first structural arm in the project that separates.
-- **No four-snake start-square bias**: all four squares inside their 25% null
-  over 200 games. This is a separate measurement from the duel one above; four
-  squares is not two.
-- **The deadline holds on this hardware under synthetic load**: 2,018 turns at
-  load average 13 on eight cores, zero late. It did **not** hold on Render's
-  0.1-CPU free tier, and the two are different failure modes rather than
-  different amounts of the same one - see the scope note below.
+- **Search pays**: full search took **192 of 200 boards** from a one-ply arm,
+  and a random control **200 of 200**. Duel, 400 games.
+- **Three evaluation terms were costing games**, each replicated on a second
+  seed block: centre (off wins 103-14, 107-21), tail reachability (69-27,
+  77-33) and the Voronoi/confine pair (69-29, 64-32). They are now zero.
+- **Two earn their place**: food (79-16, 77-24) and space (57-34, 64-27).
+  Length does not separate either way and is kept on "not shown to hurt".
+- **The Voronoi partition was 85% of the whole search**, and the evaluation is
+  **8.6x cheaper** without it. Live, that took the bot from 20,498 nodes a turn
+  to 75,240, and from mean depth 6 to 8.
+- **There is no start-square effect left to worry about**, because the harness
+  now cancels it: every board is played twice with the contestants exchanged,
+  and all four floor runs return zero decided boards.
 
-Royale (29-1) and wrapped (28-2) point the same way but are **n=30**, and this
-project's own rule is that nothing below 200 games is a finding. They belong in
-the section below, not this one.
+Royale, wrapped and constrictor have **not been re-measured** since the harness
+was rebuilt. Neither has the duel case for any evaluation term. Everything in
+the list above is four snakes on 11x11 standard.
 
 ## What is believed but not measured
 
 Read these before changing anything, because each is a place where the code
 embodies a guess:
 
-1. **Every weight in `eval.Default()`.** They encode an ordering, not a
-   measurement. Two have now been put to n=200 and neither separated from its
-   own absence: tail reachability, the largest of them, at 105-95 (p=0.52), and
-   opponent confinement at 99-101 (p=0.94). Both are kept because "not shown to
-   help" is not "shown to hurt". The other five have not been tested at all.
-2. **`Opponents: 3`.** `Opponents: 2` is now measured — 123-71 at n=200 with
-   four snakes, p=0.0003. Whether modelling the third rival also pays is not,
-   and the cost rises from 64 joint moves a ply to 256.
-3. **Constrictor.** The one ruleset where capping at one ply did not clearly
-   lose (18-11-1, p=0.27).
-4. **That search pays in royale and wrapped.** 29-1 and 28-2 are large margins
-   and they agree with the standard result, which is reassuring and is not
-   evidence. n=30.
-5. **That the deadline holds in production.** It did not, and the first live
-   game said so: every move took 501-536ms against a 500ms timeout. The budget
-   modelled the network and the search and nothing else, and on 0.1 CPU the
-   third cost - the freeze between the search stopping and the reply being
-   written - is tens of milliseconds. Fixed by an overshoot term; see
+1. **The magnitudes of the three surviving weights.** Each term has been tested
+   on its own against absent, and replicated. Weight *space* has not been
+   searched: `space` at 12 instead of 6 changes almost nothing, and `food` at 12
+   looked like a win at p=0.0003 and then reversed on a second block. There is
+   very likely a better set of numbers than `space=6, length=30, food=4`.
+2. **`Opponents: 2`.** Measured three times, wrong twice: once comparing the
+   flag with itself, once through the harness bias, once unreplicated. Nothing
+   separates it from `Opponents: 1`. `Opponents: 3` untried.
+3. **Every ruleset but standard, and the duel case.** Each evaluation arm above
+   is four snakes on 11x11 standard. Royale, wrapped and constrictor have not
+   been re-measured since the harness was rebuilt, and neither has the duel.
+4. **That any of this holds at the deployed budget.** The arms run at 4,000
+   nodes; the live instance does about 75,000 a turn.
+5. **That the deadline holds in production.** Better than it was - one live game
+   went 203 turns with zero overruns after the ceiling landed - but that same
+   game ended on a timeout the bot's own clock could not see. See
    [findings/014](findings/014-the-budget-modelled-two-of-three-costs.md).
-   **Still unverified in production**, because the fix has not yet played a
-   live game.
 
 ## What to do first
 
 In order of value:
 
-1. **Deploy it.** `render.yaml` → New → Blueprint. The region is Frankfurt on a
-   measured 44ms round trip; verify against `engine_rtt` in the logs rather than
-   trusting it. Note the free plan sleeps after 15 minutes and a sleeping snake
-   dies.
-2. **Typhon vs `battlesnake-jev`, n=200.** The headline nobody has run. It needs
-   the old binary over HTTP at ~0.5s a turn — 8+ hours — and the in-process
-   harness cannot drive an external server, so it needs a separate driver.
+1. **Play it and watch the logs.** The evaluation lost four of its seven terms
+   and the deadline gained a ceiling, and no live game has been played since.
+   `mean_depth` should be well above 8 now; `timeout_overruns` should stay at
+   zero. If it does not, drop `TYPHON_BUDGET_CEILING` below 0.60 — no rebuild.
+2. **Sweep the three surviving weights.** They were each tested at one or two
+   magnitudes, never searched. A 400-game arm is about eight minutes now, so
+   this is affordable in a way it was not before the search got 8.6x cheaper.
+3. **Re-measure the other three rulesets and the duel.** Everything established
+   above is four snakes on 11x11 standard.
+4. **Keep the cron warm window.** Leaderboard games run once a day in a batch, so
+   the service needs waking for that window and not around the clock — 750 free
+   instance hours a month against 720 in a 30-day month.
+5. **Typhon vs `battlesnake-jev`.** The headline nobody has run. It needs the old
+   binary over HTTP at ~0.5s a turn — 8+ hours — and the in-process harness
+   cannot drive an external server, so it needs a separate driver.
 
 And one standing obligation rather than a task:
 
 **Any change to `internal/search` or `internal/eval` invalidates every number in
-`BENCHMARK.md`.** Re-run `make phase-b` in the same change, or delete the entry.
-This is `docs/agents/rules.md`'s rule about regenerated artifacts, and it is the
-one most likely to be skipped, because the numbers are already there and look
-authoritative. It has already been violated three times in this repository — the
-calibration table went stale twice under load and once against an older search,
-and each time the derived claims in the prose went stale with it.
+`BENCHMARK.md`.** Re-run the arms in the same change, or delete the entry. This
+is `docs/agents/rules.md`'s rule about regenerated artifacts, and it is the one
+most likely to be skipped, because the numbers are already there and look
+authoritative.
+
+**And one rule that is newer and earned its place immediately: anything that
+separates gets replicated on a second seed block before it is believed.** It was
+committed to before the arms were run and it caught three results out of nine,
+including `food=12` at p=0.0003 — a larger margin than several things now
+recorded as established — which reversed on the second block.
 
 ## How to run things
 
@@ -120,7 +122,7 @@ bot itself:
 ## Where to read
 
 - `BENCHMARK.md` — every measured number, with the negative results kept
-- `docs/findings/` — fourteen things that would not have been guessed
+- `docs/findings/` — fifteen things that would not have been guessed
 - `docs/adr/` — eleven decisions, each with the alternative it rejected
 - `docs/research/` — the rules engine's real semantics; the turn budget; a
   re-analysis of the predecessor's conclusions
@@ -128,13 +130,23 @@ bot itself:
 
 ## The one thing worth internalising
 
-`docs/findings/001`, `002` and `012`, together. A differential test passed while
-exercising almost none of the rules; an evaluation term looked worth 63% at
-thirty games and 52.5% at two hundred; and a benchmark arm ran to completion,
-printed a p-value, and had compared a configuration with itself. All three were
-caught by measuring the *measurement* rather than trusting it, and the third was
-caught long after it had been cited twice as evidence.
+`docs/findings/015`. A bot beat an identical copy of itself, 120-80, at
+p=0.0058. Every safeguard this project has was running at the time — the floor
+run, the per-slot rate printed beside every arm, the rule against publishing
+below 200 games — and not one of them could see it. The per-slot number was
+level, and correctly so: across the run each slot won about half the games. The
+imbalance was not slot-against-slot, it was arm-against-board, and no statistic
+computed over a run as a whole contains that.
 
-The gate was green through all of it, and through two search bugs that silently
-preferred a worse move. A green gate is evidence that nothing crashed. It is not
-evidence that anything works.
+**A control that aggregates cannot detect a bias that correlates.** That is the
+third time this repository has met that shape: a differential test that passed
+while exercising almost none of the rules, a benchmark arm that compared a
+setting with itself and reported a p-value about it, and now a harness in which
+the board picked the winner and the arm took the credit.
+
+The diagnosis took one command — shift the seed base by one, and the result
+mirrored exactly. A property of the bots cannot invert when the first seed
+changes by one; a property of the boards can.
+
+The cost was every number this project had published. The gate was green
+throughout.
