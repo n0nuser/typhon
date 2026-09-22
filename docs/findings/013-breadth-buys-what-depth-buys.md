@@ -1,5 +1,18 @@
 # 013 — Breadth buys what depth buys, and in a crowd it buys more
 
+> **Withdrawn.** Every number below was measured on a harness that handed arm A
+> a bias worth 9.5 points, with `two` sitting in arm A — see
+> [015](015-the-board-was-choosing-the-winner.md). Re-run on the mirrored
+> harness the same comparison came back `one` ahead at p=0.0402, and then
+> **failed to replicate** on a second seed block at p=0.41. The honest position
+> is that nothing separates `opponents=2` from `opponents=1`, and that this file
+> records how a bias and a single unreplicated run can agree with each other.
+>
+> It is kept rather than deleted because a finding that corrected an earlier one
+> says so rather than replacing it, and because the mechanism it describes —
+> that the counter explaining depth also explains breadth — is the part that was
+> never the problem. What it lacks is any evidence that the effect is real.
+
 **Found:** running the four-snake `opponents` arm, the measurement
 [findings/012](012-an-arm-that-compared-a-flag-with-itself.md) showed had never
 been made.

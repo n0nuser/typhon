@@ -25,11 +25,18 @@ distance in this module goes through one function for this reason.
 
 ## The evidence
 
-`opponents=2` against `opponents=1`, **four snakes**, n=200 paired on seeds
-9100-9299: **123-71 of 194 decisive, 63.4% [56.4%, 69.9%], p=0.0003.** Modelling
-the second rival wins, and wins while searching more than a ply shallower - 4.20
-against 5.28. A four-snake floor run on the same seeds puts every start square
-inside its 25% null, so the result belongs to the flag.
+There is none, again, and this section has now been wrong in both directions.
+
+`opponents=2` against `opponents=1`, four snakes, once read **123-71, p=0.0003**
+for modelling two. That run was made on a harness that paid arm A a bias worth
+9.5 points, and `two` was arm A; see
+[findings/015](../findings/015-the-board-was-choosing-the-winner.md). On the
+mirrored harness the same comparison came back the *other* way at p=0.0402, and
+then did not replicate on a second seed block: **p=0.41, not separated.**
+
+So: one result through a known bias, one unreplicated result against it, and
+nothing that survives both. The default stands on the reasoning below and on no
+measurement at all.
 
 This replaces the evidence this section used to cite. An arm labelled the same
 thing was run at n=30 in a **duel**, where `chooseActors` takes
@@ -45,10 +52,10 @@ stake: 400ms buys **depth 7 against one rival and depth 3 against three**.
 Whether depth 3 with two opponents modelled beats depth 5 with one is an open
 question and is recorded as such in `BENCHMARK.md`.
 
-So this default is **measured** in the case that matters, which it was not for
-the whole of the first build. What remains a judgement is the boundary above it:
-nothing says whether `Opponents: 3` would pay, and the cost rises from 64 joint
-moves a ply to 256.
+So this default is a **judgement, not a measurement**, which is what it was at
+the end of the first build and what it has returned to being. Three attempts
+have now been made on it: one that compared the flag with itself, one that was
+measured through a harness bias, and one that did not replicate.
 
 ## What would make this wrong
 

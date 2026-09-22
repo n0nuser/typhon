@@ -23,5 +23,6 @@ lesson is "that was a typo".
 | [010](010-one-in-four-intervals-misses.md) | One of four slot measurements excluded 50%, and that is arithmetic, not a finding |
 | [011](011-constrictor-is-the-exception.md) | Search beats one ply in three rulesets out of four |
 | [012](012-an-arm-that-compared-a-flag-with-itself.md) | A benchmark arm ran to completion, reported a p-value, and compared nothing |
-| [013](013-breadth-buys-what-depth-buys.md) | Modelling a second rival wins while searching a ply shallower, by the same counter depth wins on |
+| [013](013-breadth-buys-what-depth-buys.md) | **Withdrawn** — measured through a 9.5-point harness bias, and did not replicate without it |
 | [014](014-the-budget-modelled-two-of-three-costs.md) | The turn budget's estimate was correct and every reply was still late, for ever |
+| [015](015-the-board-was-choosing-the-winner.md) | A bot beat an identical copy of itself, significantly, and the slot check saw nothing |
